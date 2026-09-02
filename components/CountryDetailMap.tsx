@@ -2,6 +2,11 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'motion/react';
 import { countryDetailedMaps } from '../countryPaths';
 import { UGANDA_DISTRICTS_DATA, UgandaDistrictMapData, UgandaSubdivision } from '../ugandaDistrictsData';
+import {
+  getElectoralCommissionDistrict,
+  getElectoralCommissionDistricts,
+  getElectoralCommissionSubcounty,
+} from '../ugandaElectoralCommission2022';
 import { Theme, Shop } from '../types';
 import { ArrowLeft, Plus, Minus, Maximize2, RotateCcw, Search, ChevronRight, Layers, MapPin, Eye } from 'lucide-react';
 import Icon from './Icon';
@@ -274,9 +279,10 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
   const [modalConfig, setModalConfig] = useState<{
     countryId: string;
     countryName: string;
-    initialLevel?: 'regions' | 'districts' | 'villages';
+    initialLevel?: 'regions' | 'districts' | 'subcounties' | 'parishes' | 'villages';
     initialRegion?: string | null;
     initialDistrict?: string | null;
+    initialSubcounty?: string | null;
   } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -300,11 +306,19 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
   // Sorted list of all Uganda districts for easy searching and switching
   const ugandaDistrictsList = useMemo(() => {
     if (countryId !== 'UG') return [];
-    return Object.keys(UGANDA_DISTRICTS_DATA).sort().map(name => ({
-      name,
-      region: UGANDA_DISTRICTS_DATA[name]?.region || 'Central',
-      subCount: UGANDA_DISTRICTS_DATA[name]?.subdivisions?.length || 0
-    }));
+    const mapDistrictNames = Object.keys(UGANDA_DISTRICTS_DATA);
+    return getElectoralCommissionDistricts().map((district) => {
+      const mapName = mapDistrictNames.find(
+        (candidate) => getElectoralCommissionDistrict(candidate)?.name === district.name,
+      );
+      return {
+        name: mapName || district.name,
+        sourceName: district.name,
+        type: district.type,
+        region: mapName ? UGANDA_DISTRICTS_DATA[mapName].region : 'Region not provided by source',
+        subCount: district.subcounties.length,
+      };
+    }).sort((a, b) => a.sourceName.localeCompare(b.sourceName));
   }, [countryId]);
 
   const currentUgandaDistrictData: UgandaDistrictMapData | null = useMemo(() => {
@@ -338,7 +352,8 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
   const handleRegionClick = (pathName: string) => {
     if (countryId === 'UG') {
       // In Uganda, clicking any district immediately opens that district's individual map
-      handleSelectDistrict(pathName);
+      const sourceDistrict = getElectoralCommissionDistrict(pathName);
+      if (sourceDistrict) handleSelectDistrict(pathName);
     } else if (countryId === 'TZ' && pathName === 'Dar es Salaam') {
       setDrillDownDistrict('Dar es Salaam');
       handleReset();
@@ -517,10 +532,10 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
                     : 'bg-white/90 border-slate-200 text-slate-800 hover:border-yellow-500'
                 }`}
               >
-                <option value="">🇺🇬 All Uganda Districts (135)</option>
+                <option value="">🇺🇬 All EC District/City Units (145)</option>
                 {ugandaDistrictsList.map(d => (
                   <option key={d.name} value={d.name}>
-                    {d.name} District ({d.region} • {d.subCount} Subdivisions)
+                    {d.sourceName} {d.type === 'City' ? '' : 'District'} ({d.region} • {d.subCount} Sub-counties)
                   </option>
                 ))}
               </select>
@@ -530,6 +545,25 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
 
         {/* Action & Zoom Controls */}
         <div className="flex items-center space-x-2 pointer-events-auto">
+          {countryId === 'UG' && (
+            <button
+              onClick={() => setModalConfig({
+                countryId: 'UG',
+                countryName: 'Uganda',
+                initialLevel: drillDownDistrict ? 'subcounties' : 'regions',
+                initialDistrict: drillDownDistrict,
+              })}
+              className={`px-3 py-2 rounded-xl border backdrop-blur-md transition-all shadow-lg flex items-center space-x-1.5 text-xs font-bold ${
+                theme === 'dark'
+                  ? 'bg-slate-900/90 border-emerald-500/40 text-emerald-400 hover:bg-slate-800'
+                  : 'bg-white/90 border-emerald-500/40 text-emerald-700 hover:bg-emerald-50'
+              }`}
+              title="Open the Electoral Commission 2022 district-to-village hierarchy"
+            >
+              <Layers size={15} />
+              <span>EC 2022 Hierarchy</span>
+            </button>
+          )}
           <button 
             onClick={() => setShowProfileModal(true)}
             id="country-detail-profile-btn"
@@ -637,6 +671,16 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
                         onMouseLeave={() => {
                           setHoveredSubdivision(null);
                           setHoveredRegion(null);
+                        }}
+                        onClick={() => {
+                          if (!drillDownDistrict || !getElectoralCommissionSubcounty(drillDownDistrict, sub.name)) return;
+                          setModalConfig({
+                            countryId: 'UG',
+                            countryName: 'Uganda',
+                            initialLevel: 'parishes',
+                            initialDistrict: drillDownDistrict,
+                            initialSubcounty: sub.name,
+                          });
                         }}
                         className="outline-none cursor-pointer transition-colors"
                       />
@@ -1185,6 +1229,7 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
           initialLevel={modalConfig.initialLevel}
           initialRegion={modalConfig.initialRegion}
           initialDistrict={modalConfig.initialDistrict}
+          initialSubcounty={modalConfig.initialSubcounty}
           onClose={() => setModalConfig(null)}
         />
       )}

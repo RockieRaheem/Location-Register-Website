@@ -1,0 +1,23 @@
+{
+  "databasePath": "C:\\Users\\Raheem\\Desktop\\Location-Register-Website\\data\\location-register.sqlite",
+  "importedUgandaLocations": 85655,
+  "uganda": {
+    "regions": 5,
+    "districtAndCityUnits": 145,
+    "countiesMunicipalitiesConstituencies": 347,
+    "subcounties": 2191,
+    "parishes": 8173,
+    "villages": 74794
+  },
+  "database": {
+    "countries": 6,
+    "hierarchy_levels": 13,
+    "locations": 85671,
+    "administrative_locations": 85665,
+    "hierarchy_paths": 585410
+  },
+  "integrityCheck": [
+    "ok"
+  ],
+  "sourceSha256": "92a02d4c9fcafac3e5ba106a0b03e29c8ad154ec8f63e2c1129f1c01d2cf5ac7"
+}

@@ -9,12 +9,19 @@ import {
 import { Theme } from '../types';
 import { countryDetailedMaps } from '../countryPaths';
 import { UGANDA_DISTRICTS_DATA } from '../ugandaDistrictsData';
+import {
+  getElectoralCommissionDistrict,
+  getElectoralCommissionDistricts,
+  getElectoralCommissionSubcounty,
+  getElectoralCommissionSubcounties,
+  normalizeUgandaLocationName,
+  UGANDA_ELECTORAL_COMMISSION_2022_METADATA,
+} from '../ugandaElectoralCommission2022';
 import CountryProfileModal from './CountryProfileModal';
 import VillageProfileCardModal from './VillageProfileCardModal';
 import ParishAndVillageCanvas from './ParishAndVillageCanvas';
 import { 
   getUgandaSubcountyHierarchy, 
-  createUgandaVillageNode,
   UgandaVillageNode, 
   UgandaParishNode, 
   UgandaSubcountyHierarchy 
@@ -317,6 +324,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   const [showVillageDetails, setShowVillageDetails] = useState(false);
   const [hoveredEntity, setHoveredEntity] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [entitySearch, setEntitySearch] = useState('');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lastTapRef = useRef<number>(0);
@@ -392,22 +400,30 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
 
   // Setup hierarchical regions/districts/villages dynamically
   const adminHierarchy = useMemo(() => {
-    // Uganda custom real data for all 135 districts
+    // Uganda Electoral Commission 2022 hierarchy, joined to the available
+    // 2020 boundary geometry by normalized district name where possible.
     if (countryId === 'UG') {
       const districtsByRegion: Record<string, { id: string; name: string }[]> = {
         'Central': [],
         'Western': [],
         'Eastern': [],
-        'Northern': []
+        'Northern': [],
+        'Region not provided by source': [],
       };
       const villagesByDistrict: Record<string, { id: string; name: string }[]> = {};
+      const mapDistrictByNormalizedName = new globalThis.Map<string, string>();
+      const mapRegionByNormalizedName = new globalThis.Map<string, string>();
 
       Object.entries(UGANDA_DISTRICTS_DATA).forEach(([distName, distDetail], idx) => {
+        const sourceDistrict = getElectoralCommissionDistrict(distName);
+        if (!sourceDistrict) return;
         const region = distDetail.region || 'Central';
         if (!districtsByRegion[region]) {
           districtsByRegion[region] = [];
         }
         districtsByRegion[region].push({ id: `UG-D-${idx + 1}`, name: distName });
+        mapDistrictByNormalizedName.set(normalizeUgandaLocationName(sourceDistrict.name), distName);
+        mapRegionByNormalizedName.set(normalizeUgandaLocationName(sourceDistrict.name), region);
 
         villagesByDistrict[distName] = distDetail.subdivisions.map((sub, sIdx) => ({
           id: sub.pcode || `UG-S-${idx + 1}-${sIdx + 1}`,
@@ -415,18 +431,35 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
         }));
       });
 
+      getElectoralCommissionDistricts().forEach((district, idx) => {
+        if (mapDistrictByNormalizedName.has(normalizeUgandaLocationName(district.name))) return;
+
+        const baseDistrictName = district.type === 'City'
+          ? district.name.replace(/ CITY$/, '')
+          : district.name;
+        const region = mapRegionByNormalizedName.get(normalizeUgandaLocationName(baseDistrictName))
+          || 'Region not provided by source';
+        districtsByRegion[region].push({
+          id: `UG-EC-D-${idx + 1}`,
+          name: district.name,
+        });
+      });
+
       // Sort districts alphabetically within each region
       Object.keys(districtsByRegion).forEach(r => {
         districtsByRegion[r].sort((a, b) => a.name.localeCompare(b.name));
       });
 
-      return {
-        regions: [
+      const regions = [
           { id: 'UG-1', name: 'Central' },
           { id: 'UG-2', name: 'Western' },
           { id: 'UG-3', name: 'Eastern' },
-          { id: 'UG-4', name: 'Northern' }
-        ],
+          { id: 'UG-4', name: 'Northern' },
+          { id: 'UG-EC-UNKNOWN', name: 'Region not provided by source' },
+        ].filter((region) => districtsByRegion[region.name].length > 0);
+
+      return {
+        regions,
         districtsByRegion,
         villagesByDistrict
       };
@@ -501,7 +534,11 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
 
   // Handle double clicks / double taps to trigger the metrics card
   const handleEntityDoubleTap = (village: UgandaVillageNode | { id: string; name: string }) => {
-    setSelectedVillage(village as UgandaVillageNode);
+    const sourceVillage = selectedParish?.villages.find(
+      (candidate) => candidate.id === village.id || candidate.name === village.name,
+    );
+    if (!sourceVillage) return;
+    setSelectedVillage(sourceVillage);
     setShowVillageDetails(true);
   };
 
@@ -523,6 +560,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
     } 
     // Level 2: District -> Sub-Counties
     else if (currentLevel === 'districts') {
+      if (countryId === 'UG' && !getElectoralCommissionDistrict(entityName)) return;
       const regionDistricts = adminHierarchy.districtsByRegion[selectedRegion || ''] || [];
       const matchedDistrict = regionDistricts.find(d => d.name.toLowerCase() === entityName.toLowerCase());
       const districtName = matchedDistrict ? matchedDistrict.name : entityName;
@@ -558,15 +596,9 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
           return;
         }
       }
-      setSelectedVillage(createUgandaVillageNode({
-        name: entityName,
-        parishName: selectedParish?.name || 'Parish',
-        subcountyName: selectedSubcounty || 'Sub-County',
-        districtName: selectedDistrict || 'District',
-        shopDensity: 14,
-        weeklySalesVolumeUGX: 2400000
-      }));
-      setShowVillageDetails(true);
+      // Do not synthesize a village profile when the selected name is not in
+      // the source hierarchy.
+      return;
     }
   };
 
@@ -750,8 +782,19 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
     } else if (currentLevel === 'districts') {
       return (adminHierarchy.districtsByRegion[selectedRegion || ''] || []).map(d => ({ id: d.id, name: d.name, type: 'District' }));
     } else if (currentLevel === 'subcounties') {
-      if (selectedDistrict === 'Kampala') {
-        return KAMPALA_DIVISIONS.map(d => ({ id: d.name, name: d.name, type: 'Division' }));
+      const electoralCommissionSubcounties = selectedDistrict
+        ? getElectoralCommissionSubcounties(selectedDistrict)
+        : [];
+      if (electoralCommissionSubcounties.length > 0) {
+        return electoralCommissionSubcounties.map((subcounty, index) => ({
+          id: `ec-2022-subcounty-${index + 1}-${normalizeUgandaLocationName(subcounty.name)}`,
+          name: subcounty.name,
+          type: subcounty.name.includes('DIVISION')
+            ? 'Division'
+            : subcounty.name.includes('TOWN COUNCIL') || subcounty.name.includes('T/C')
+            ? 'Town Council'
+            : 'Sub-County',
+        }));
       }
       if (selectedDistrict && UGANDA_DISTRICTS_DATA[selectedDistrict]) {
         return UGANDA_DISTRICTS_DATA[selectedDistrict].subdivisions.map(s => ({
@@ -781,7 +824,17 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
       }
       return [];
     }
-  }, [currentLevel, selectedRegion, selectedDistrict, selectedSubcounty, selectedParish, selectedDivision, adminHierarchy, currentSubcountyHierarchy]);
+  }, [currentLevel, selectedRegion, selectedDistrict, selectedSubcounty, selectedParish, selectedDivision, adminHierarchy, currentSubcountyHierarchy, countryId]);
+
+  useEffect(() => {
+    setEntitySearch('');
+  }, [currentLevel, selectedRegion, selectedDistrict, selectedSubcounty, selectedParish?.id]);
+
+  const displayedLevelEntities = useMemo(() => {
+    const query = entitySearch.trim().toUpperCase();
+    if (!query) return activeLevelEntities;
+    return activeLevelEntities.filter((entity) => entity.name.toUpperCase().includes(query));
+  }, [activeLevelEntities, entitySearch]);
 
   // Generate dynamic stats to mock deep geographical records
   const dynamicMappedStats = useMemo(() => {
@@ -1030,8 +1083,12 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                   {currentLevel === 'regions' && "🎯 Click any Region path or name to view local Districts."}
                   {currentLevel === 'districts' && "🎯 Click any District to explore Sub-Counties & Town Councils."}
                   {currentLevel === 'subcounties' && "🎯 Click any Sub-County or Division to view Parishes & Wards."}
-                  {currentLevel === 'parishes' && "🎯 Click any Parish to explore its verified LC1 Villages & PDM SACCO nodes."}
-                  {currentLevel === 'villages' && "⚡ Click any Village to open its complete localized card with LC1 leadership & shop metrics."}
+                  {currentLevel === 'parishes' && (countryId === 'UG'
+                    ? "Click any Electoral Commission parish or ward to list its village paths."
+                    : "Click any Parish to explore its villages.")}
+                  {currentLevel === 'villages' && (countryId === 'UG'
+                    ? "Click any village to inspect its Electoral Commission hierarchy and source path."
+                    : "Click any Village to open its localized card.")}
                 </span>
               </div>
 
@@ -1050,12 +1107,26 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                     )}
                   </span>
                   <span className="text-[10px] bg-yellow-500/10 text-yellow-500 font-bold px-2 py-0.5 rounded-full">
-                    {activeLevelEntities.length} Listed
+                    {displayedLevelEntities.length}/{activeLevelEntities.length} Listed
                   </span>
                 </div>
 
+                {activeLevelEntities.length > 8 && (
+                  <label className={`flex items-center gap-2 px-3 py-2 rounded-xl border ${
+                    theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
+                  }`}>
+                    <Search size={14} className="text-slate-400 shrink-0" />
+                    <input
+                      value={entitySearch}
+                      onChange={(event) => setEntitySearch(event.target.value)}
+                      placeholder={`Search ${currentLevel}…`}
+                      className="w-full bg-transparent outline-none text-xs text-slate-700 dark:text-slate-200 placeholder:text-slate-500"
+                    />
+                  </label>
+                )}
+
                 <div className="space-y-1.5">
-                  {activeLevelEntities.map((entity, idx) => {
+                  {displayedLevelEntities.map((entity, idx) => {
                     const isHovered = hoveredEntity === entity.name;
                     const isSelected = 
                       (currentLevel === 'regions' && selectedRegion === entity.name) ||
@@ -1111,8 +1182,25 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                 </div>
               </div>
 
-              {/* Dynamic stats preview box */}
+              {/* Source status / dynamic stats preview box */}
               <div className={`p-4 border-t ${theme === 'dark' ? 'border-slate-900 bg-slate-950/60' : 'border-slate-100 bg-slate-50/50'}`}>
+                {countryId === 'UG' ? (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-black uppercase tracking-wider text-slate-400">Hierarchy source</span>
+                      <span className="font-bold text-emerald-500 text-right">Electoral Commission 2022</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-slate-400">Source SHA-256</span>
+                      <span className="font-mono text-[9px] text-slate-500" title={UGANDA_ELECTORAL_COMMISSION_2022_METADATA.sourceSha256}>
+                        {UGANDA_ELECTORAL_COMMISSION_2022_METADATA.sourceSha256.slice(0, 12)}…
+                      </span>
+                    </div>
+                    <p className="text-[10px] leading-relaxed text-slate-500">
+                      Names and parent paths are sourced. Leadership, coordinates, population, PDM and commerce data are not included in this dataset.
+                    </p>
+                  </div>
+                ) : (
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase font-bold text-slate-400">Offline status</span>
@@ -1138,6 +1226,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
               </div>
             </div>
 
@@ -1359,6 +1448,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                           selectedDistrict === 'Kampala' ? (
                             KAMPALA_DIVISIONS.map((division, idx) => {
                               const isHovered = hoveredEntity === division.name;
+                              const sourceDivision = getElectoralCommissionSubcounty(selectedDistrict, division.name);
                               return (
                                 <g key={`modal-kampala-div-${idx}`}>
                                   <motion.path
@@ -1378,8 +1468,8 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                                     onMouseEnter={() => setHoveredEntity(division.name)}
                                     onMouseLeave={() => setHoveredEntity(null)}
                                     onClick={() => {
-                                      const divName = division.name.replace(" Division", "");
-                                      setSelectedSubcounty(divName);
+                                      if (!sourceDivision) return;
+                                      setSelectedSubcounty(sourceDivision.name);
                                       setCurrentLevel('parishes');
                                     }}
                                     className="transition-all duration-300 cursor-pointer outline-none"
@@ -1387,8 +1477,8 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                                   <g 
                                     className="cursor-pointer"
                                     onClick={() => {
-                                      const divName = division.name.replace(" Division", "");
-                                      setSelectedSubcounty(divName);
+                                      if (!sourceDivision) return;
+                                      setSelectedSubcounty(sourceDivision.name);
                                       setCurrentLevel('parishes');
                                     }}
                                   >

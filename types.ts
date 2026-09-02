@@ -220,10 +220,14 @@ export interface AdminAreaOffice {
 
 export interface AdminLevel {
   id: number;
+  /** Globally unique, stable database identifier. Prefer this for new references. */
+  uid?: string;
   name: string;
   level: number; // e.g., 1 for Province/Region, 2 for District, 3 for County
   countryCode: string;
   parentAdminLevelId?: number;
+  /** Globally unique parent reference corresponding to parentAdminLevelId. */
+  parentUid?: string;
   office?: AdminAreaOffice;
   leaders?: AdminAreaLeader[];
 }
@@ -231,6 +235,50 @@ export interface AdminLevel {
 export interface AdminLevelName {
   level: number;
   name: string;
+  /** Stable machine key; display names may be changed without breaking references. */
+  key?: string;
+  alternateNames?: string[];
+  allowedTypes?: string[];
+}
+
+export interface LocationHierarchyLevel {
+  uid: string;
+  countryUid: string;
+  order: number;
+  key: string;
+  name: string;
+  alternateNames: string[];
+  allowedTypes: string[];
+  required: boolean;
+}
+
+export interface LocationRecord {
+  uid: string;
+  countryUid: string;
+  countryCode: string;
+  levelUid: string | null;
+  levelOrder: number;
+  levelKey: string;
+  levelName: string;
+  parentUid: string | null;
+  name: string;
+  type: string;
+  status: 'active' | 'inactive' | 'historical';
+  source?: {
+    name?: string;
+    year?: number;
+    path?: string;
+  };
+  metadata: Record<string, unknown>;
+}
+
+export interface LocationHierarchySchema {
+  countryUid: string;
+  countryCode: string;
+  countryName: string;
+  rootLocationUid: string;
+  version: number;
+  levels: LocationHierarchyLevel[];
 }
 
 export interface CurrencyDenominator {
@@ -267,6 +315,10 @@ export interface RoundingConfig {
 
 export interface Country {
   id: number;
+  /** Globally unique database identifier for the country entity. */
+  uid?: string;
+  /** UID of the Country node at the root of this country's location tree. */
+  rootLocationUid?: string;
   name: string;
   continent: string;
   economicZones: string[];

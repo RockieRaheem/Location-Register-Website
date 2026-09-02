@@ -47,13 +47,14 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
             {subcountyName} Parishes & Wards
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-            Click any Parish or Ward below to inspect its verified LC1 Villages, Trade Density, and PDM SACCO nodes.
+            Click any Parish or Ward below to inspect its villages and source hierarchy.
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 w-full">
           {parishes.map((parish, idx) => {
             const isHovered = hoveredEntity === parish.name;
+            const isSourceHierarchyOnly = parish.sourceName === 'Uganda Electoral Commission administrative hierarchy';
             const villageCount = parish.villages ? parish.villages.length : 0;
             const totalShops = parish.villages?.reduce((acc, v) => acc + (v.shopDensity || 0), 0) || 0;
 
@@ -79,7 +80,7 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
                       {parish.type || 'Parish'}
                     </span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                      {villageCount} Mapped Villages
+                      {villageCount} {isSourceHierarchyOnly ? 'Source Villages' : 'Mapped Villages'}
                     </span>
                   </div>
 
@@ -93,23 +94,23 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
                   </p>
 
                   <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 space-y-1.5 text-xs">
-                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300 gap-3">
                       <span className="text-[11px] text-slate-400 flex items-center gap-1 font-bold">
                         <Users size={12} className="text-indigo-400" />
                         Parish Chief:
                       </span>
-                      <span className="font-semibold">{parish.parishChief || 'Government Appointed Chief'}</span>
+                      <span className="font-semibold text-right">{parish.parishChief || 'Not provided by source'}</span>
                     </div>
 
-                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300 gap-3">
                       <span className="text-[11px] text-slate-400 flex items-center gap-1 font-bold">
                         <ShieldCheck size={12} className="text-emerald-400" />
                         LC2 Chairperson:
                       </span>
-                      <span className="font-semibold">{parish.lc2Chairperson || 'Elected LC2 Leader'}</span>
+                      <span className="font-semibold text-right">{parish.lc2Chairperson || 'Not provided by source'}</span>
                     </div>
 
-                    <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                    {!isSourceHierarchyOnly && <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
                       <span className="text-[11px] text-slate-400 flex items-center gap-1 font-bold">
                         <Award size={12} className="text-yellow-500" />
                         PDM SACCO:
@@ -117,14 +118,14 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
                       <span className="font-semibold text-emerald-600 dark:text-emerald-400 truncate max-w-[180px]" title={parish.pdmSaccoName}>
                         {parish.pdmSaccoName || `${parish.name} PDM SACCO`}
                       </span>
-                    </div>
+                    </div>}
                   </div>
                 </div>
 
                 <div className="mt-4 pt-2.5 flex items-center justify-between text-[11px] font-bold text-yellow-600 dark:text-yellow-400">
                   <span className="flex items-center gap-1">
-                    <Store size={12} />
-                    ~{totalShops} Active Retail Points
+                    {isSourceHierarchyOnly ? <ShieldCheck size={12} /> : <Store size={12} />}
+                    {isSourceHierarchyOnly ? 'Electoral Commission 2022' : `~${totalShops} Active Retail Points`}
                   </span>
                   <span className="flex items-center gap-1 underline text-xs">
                     Drill down to Villages →
@@ -152,7 +153,7 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
           Villages in {selectedParish?.name || 'Parish'}
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          {subcountyName} • {districtName} District. Click any village to open its comprehensive localized card.
+          {subcountyName} • {districtName}. Click any village to inspect its source hierarchy path.
         </p>
       </div>
 
@@ -160,6 +161,7 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
         {currentVillages.map((village, idx) => {
           const isHovered = hoveredEntity === village.name;
           const isSelected = selectedVillage?.name === village.name;
+          const isSourceHierarchyOnly = village.verificationStatus === 'Source hierarchy only';
 
           return (
             <motion.div
@@ -185,7 +187,7 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
                     {village.type || 'Ekyalo (LC1)'}
                   </span>
                   <span className="text-[9px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                    {village.pdmStatus || 'Active & Funded'}
+                    {isSourceHierarchyOnly ? 'EC hierarchy' : village.pdmStatus || 'Status not recorded'}
                   </span>
                 </div>
 
@@ -197,23 +199,30 @@ export const ParishAndVillageCanvas: React.FC<ParishAndVillageCanvasProps> = ({
                 <div className="mt-2.5 space-y-1 text-xs">
                   <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span className="text-[11px] font-bold">LC1 Chairperson:</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{village.lc1Chairperson}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 text-right">{village.lc1Chairperson || 'Not provided by source'}</span>
                   </div>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  {!isSourceHierarchyOnly && <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span className="text-[11px] font-bold">Shop Density:</span>
                     <span className="font-bold text-rose-500">{village.shopDensity} Shops/km²</span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  </div>}
+                  {!isSourceHierarchyOnly && <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                     <span className="text-[11px] font-bold">Weekly Sales:</span>
                     <span className="font-bold text-emerald-500">USh {village.weeklySalesVolumeUGX?.toLocaleString()}</span>
-                  </div>
+                  </div>}
+                  {isSourceHierarchyOnly && (
+                    <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono break-all">
+                      {village.sourcePath}
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div className="mt-3 pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px] font-mono text-slate-400">
                 <span className="flex items-center gap-1">
                   <Compass size={11} className="text-yellow-500" />
-                  {village.lat?.toFixed(3)}°N, {village.lon?.toFixed(3)}°E
+                  {village.lat !== undefined && village.lon !== undefined
+                    ? `${village.lat.toFixed(3)}°N, ${village.lon.toFixed(3)}°E`
+                    : 'Coordinates not provided'}
                 </span>
                 <span className="text-yellow-600 dark:text-yellow-400 font-bold uppercase">
                   View Card →

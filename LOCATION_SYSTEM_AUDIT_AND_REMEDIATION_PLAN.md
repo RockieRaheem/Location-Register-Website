@@ -17,6 +17,18 @@ All Windows-compatible project files were restored. Eight archived files under `
 
 Before the repository is expected to be clean on Windows, those eight files should be renamed in a follow-up commit from a filesystem that can check them out, using a Windows-safe timestamp such as `2025-11-21T10-03-07.401Z.json`.
 
+## Implementation update: Electoral Commission 2022 hierarchy
+
+The supplied Electoral Commission dataset has now been integrated for Uganda's district/city-unit → subcounty → parish/ward → village navigation. The runtime synthetic hierarchy and generated village profiles described in this audit were removed from the active Uganda hierarchy adapter.
+
+The normalized source copy contains 145 district/city units, 2,191 subcounties, 8,173 parishes, and 74,794 unique full village paths. Missing leadership, coordinates, population, PDM, and commercial details are left unavailable rather than generated. Full reconciliation findings, source SHA-256, explicit map aliases, reproduction commands, and remaining geometry limitations are recorded in [`ELECTORAL_COMMISSION_2022_INTEGRATION.md`](./ELECTORAL_COMMISSION_2022_INTEGRATION.md).
+
+This completes the authoritative-name replacement for the modal's Uganda district-to-village path. It does not resolve the audit's separate persistence/editor synchronization, county-tier, authentication, upload, or geometry-provenance findings.
+
+## Implementation update: normalized location database
+
+The JSON-file country persistence has now been replaced by a normalized SQLite location registry. Country-specific hierarchy definitions, globally unique location UUIDs, same-country parent enforcement, closure-path traversal, source provenance, aliases, external identifiers, and audit records are implemented. Uganda's Electoral Commission records are seeded through the full Country → Region → District/City → County/Municipality/Constituency → Subcounty/Division → Parish/Ward → Village path. See [`LOCATION_DATABASE_ARCHITECTURE.md`](./LOCATION_DATABASE_ARCHITECTURE.md) for the schema, constraints, APIs, verified row counts, and operational procedures.
+
 ## Executive summary
 
 The repository contains a visually strong prototype for navigating African countries and Uganda's administrative boundaries. Uganda has committed boundary coverage for four regions, 135 district records, and 1,520 lower-level subdivision shapes. However, the application does not yet operate as one authoritative district-to-village location register.
@@ -706,4 +718,3 @@ The location system will be considered production-ready when:
 - District-to-village traversal is complete for the activated dataset version.
 - Automated integrity, security, integration, and end-to-end tests pass.
 - The repository checks out, installs, builds, and tests successfully on Windows and Linux.
-

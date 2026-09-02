@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Generated local location-registry databases and SQLite sidecars
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

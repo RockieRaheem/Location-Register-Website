@@ -1,0 +1,33 @@
+{
+  "source": {
+    "fileName": "electoral-commission-2022.json",
+    "byteLength": 17538204,
+    "sha256": "92a02d4c9fcafac3e5ba106a0b03e29c8ad154ec8f63e2c1129f1c01d2cf5ac7"
+  },
+  "output": {
+    "districtAndCityUnits": 145,
+    "districts": 135,
+    "cities": 10,
+    "subcounties": 2191,
+    "parishes": 8173,
+    "uniqueFullVillagePaths": 74794,
+    "globalUniqueVillageNames": 55157
+  },
+  "sourceIndexCounts": {
+    "districts": 145,
+    "byVillage": 55157,
+    "byParish": 8173,
+    "bySubcounty": 2191,
+    "bySubcountyVillageReferences": 76385,
+    "byParishVillageReferences": 64298
+  },
+  "reconciliation": {
+    "duplicateParishSegmentsMerged": 1059,
+    "duplicateExactPathsIgnoredFromBySubcounty": 2050,
+    "pathsAlreadyPresentWhenReadingByParish": 63839,
+    "parishPathsAddedOnlyByParish": 61,
+    "villagePathsAddedOnlyByParish": 459,
+    "subcountyCountLabelMismatches": 1944,
+    "note": "The source field number_of_subcounties behaves like a village count in many records and is inconsistent with both reference and unique-name counts. It was not used as a hierarchy count."
+  }
+}
