@@ -3,12 +3,22 @@ import { motion, AnimatePresence, useMotionValue, useSpring } from 'motion/react
 import { 
   X, Loader2, Download, Maximize2, Minimize2, ZoomIn, ZoomOut, 
   RotateCcw, Plus, Minus, MapPin, Building2, Map, Users, ChevronRight,
-  TrendingUp, Compass, Calendar, ArrowLeft, RefreshCw, BarChart2, Eye
+  TrendingUp, Compass, Calendar, ArrowLeft, RefreshCw, BarChart2, Eye,
+  Search, Award, ShieldCheck, Home
 } from 'lucide-react';
 import { Theme } from '../types';
 import { countryDetailedMaps } from '../countryPaths';
 import { UGANDA_DISTRICTS_DATA } from '../ugandaDistrictsData';
 import CountryProfileModal from './CountryProfileModal';
+import VillageProfileCardModal from './VillageProfileCardModal';
+import ParishAndVillageCanvas from './ParishAndVillageCanvas';
+import { 
+  getUgandaSubcountyHierarchy, 
+  createUgandaVillageNode,
+  UgandaVillageNode, 
+  UgandaParishNode, 
+  UgandaSubcountyHierarchy 
+} from '../ugandaAdminHierarchy';
 
 const KAMPALA_DIVISIONS = [
   {
@@ -257,14 +267,18 @@ const DAR_ES_SALAAM_LEVELS = [
   }
 ];
 
+export type AdminLevel = 'regions' | 'districts' | 'subcounties' | 'parishes' | 'villages';
+
 interface CountryMapModalProps {
   countryId: string;
   countryName: string;
   theme: Theme;
   onClose: () => void;
-  initialLevel?: 'regions' | 'districts' | 'villages';
+  initialLevel?: AdminLevel;
   initialRegion?: string | null;
   initialDistrict?: string | null;
+  initialSubcounty?: string | null;
+  initialParish?: string | null;
 }
 
 interface ParsedPath {
@@ -282,7 +296,9 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   onClose,
   initialLevel,
   initialRegion,
-  initialDistrict
+  initialDistrict,
+  initialSubcounty,
+  initialParish
 }) => {
   const [svgContent, setSvgContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -290,12 +306,14 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [scale, setScale] = useState(1);
   
-  // Drill-down states
-  const [currentLevel, setCurrentLevel] = useState<'regions' | 'districts' | 'villages'>('regions');
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(null);
+  // Dynamic 6-Level Drill-down states
+  const [currentLevel, setCurrentLevel] = useState<AdminLevel>(initialLevel || 'regions');
+  const [selectedRegion, setSelectedRegion] = useState<string | null>(initialRegion || null);
+  const [selectedDistrict, setSelectedDistrict] = useState<string | null>(initialDistrict || null);
+  const [selectedSubcounty, setSelectedSubcounty] = useState<string | null>(initialSubcounty || null);
+  const [selectedParish, setSelectedParish] = useState<UgandaParishNode | null>(null);
+  const [selectedVillage, setSelectedVillage] = useState<UgandaVillageNode | null>(null);
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
-  const [selectedVillage, setSelectedVillage] = useState<{ id: string; name: string } | null>(null);
   const [showVillageDetails, setShowVillageDetails] = useState(false);
   const [hoveredEntity, setHoveredEntity] = useState<string | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -319,13 +337,40 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
     y.set(0);
   };
 
+  // Derive the active subcounty hierarchy with parishes and villages
+  const currentSubcountyHierarchy = useMemo<UgandaSubcountyHierarchy | null>(() => {
+    if (selectedDistrict && selectedSubcounty) {
+      return getUgandaSubcountyHierarchy(selectedDistrict, selectedSubcounty);
+    }
+    return null;
+  }, [selectedDistrict, selectedSubcounty]);
+
+  // Keep selected Parish in sync when subcounty changes
+  useEffect(() => {
+    if (currentSubcountyHierarchy && currentSubcountyHierarchy.parishes.length > 0) {
+      if (!selectedParish || !currentSubcountyHierarchy.parishes.some(p => p.name === selectedParish.name)) {
+        setSelectedParish(currentSubcountyHierarchy.parishes[0]);
+      }
+    }
+  }, [currentSubcountyHierarchy]);
+
   const handleBack = () => {
-    if (selectedDivision) {
+    if (showVillageDetails) {
+      setShowVillageDetails(false);
+    } else if (selectedDivision) {
       setSelectedDivision(null);
       handleReset();
     } else if (currentLevel === 'villages') {
+      setCurrentLevel('parishes');
+      setSelectedVillage(null);
+    } else if (currentLevel === 'parishes') {
+      setCurrentLevel('subcounties');
+      setSelectedParish(null);
+      setSelectedVillage(null);
+    } else if (currentLevel === 'subcounties') {
       setCurrentLevel('districts');
-      setSelectedDistrict(null);
+      setSelectedSubcounty(null);
+      setSelectedParish(null);
       setSelectedVillage(null);
       setScale(2.2);
       x.set(-50);
@@ -337,6 +382,8 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
       x.set(0);
       y.set(0);
       setSelectedDistrict(null);
+      setSelectedSubcounty(null);
+      setSelectedParish(null);
       setSelectedVillage(null);
     } else {
       onClose();
@@ -418,7 +465,14 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   useEffect(() => {
     if (initialDistrict) {
       setSelectedDistrict(initialDistrict);
-      setCurrentLevel('villages');
+      
+      // If initialSubcounty is also provided, drill all the way to parishes
+      if (initialSubcounty) {
+        setSelectedSubcounty(initialSubcounty);
+        setCurrentLevel(initialLevel || 'parishes');
+      } else {
+        setCurrentLevel(initialLevel || 'subcounties');
+      }
       
       // Find region of this district to keep hierarchy consistent
       let foundRegion: string | null = null;
@@ -443,69 +497,96 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
       x.set(-50);
       y.set(-50);
     }
-  }, [initialDistrict, initialRegion, adminHierarchy, countryId]);
+  }, [initialDistrict, initialRegion, initialSubcounty, initialLevel, adminHierarchy, countryId]);
 
   // Handle double clicks / double taps to trigger the metrics card
-  const handleEntityDoubleTap = (village: { id: string; name: string }) => {
-    setSelectedVillage(village);
+  const handleEntityDoubleTap = (village: UgandaVillageNode | { id: string; name: string }) => {
+    setSelectedVillage(village as UgandaVillageNode);
     setShowVillageDetails(true);
   };
 
   const handleEntitySingleClick = (entityName: string) => {
     setHoveredEntity(entityName);
     
-    // Check if clicking level 1 to go to 2
+    // Level 1: Region -> District
     if (currentLevel === 'regions') {
       const matchedRegion = adminHierarchy.regions.find(r => r.name.toLowerCase() === entityName.toLowerCase());
       if (matchedRegion) {
         setSelectedRegion(matchedRegion.name);
-        setCurrentLevel('districts');
-        setScale(2.2);
-        x.set(-50);
-        y.set(-50);
       } else {
-        // Fallback for click matching
         setSelectedRegion(entityName);
-        setCurrentLevel('districts');
-        setScale(2.2);
       }
+      setCurrentLevel('districts');
+      setScale(2.2);
+      x.set(-50);
+      y.set(-50);
     } 
-    // Check if clicking level 2 to go to 3
+    // Level 2: District -> Sub-Counties
     else if (currentLevel === 'districts') {
       const regionDistricts = adminHierarchy.districtsByRegion[selectedRegion || ''] || [];
       const matchedDistrict = regionDistricts.find(d => d.name.toLowerCase() === entityName.toLowerCase());
-      if (matchedDistrict) {
-        setSelectedDistrict(matchedDistrict.name);
-        setCurrentLevel('villages');
-        setScale(4.5);
-        x.set(-150);
-        y.set(-100);
-      } else {
-        // Fallback
-        setSelectedDistrict(entityName);
-        setCurrentLevel('villages');
-        setScale(4.5);
+      const districtName = matchedDistrict ? matchedDistrict.name : entityName;
+      
+      setSelectedDistrict(districtName);
+      setCurrentLevel('subcounties');
+      setScale(3.5);
+      x.set(-100);
+      y.set(-80);
+    }
+    // Level 3: Sub-County -> Parishes
+    else if (currentLevel === 'subcounties') {
+      setSelectedSubcounty(entityName);
+      setCurrentLevel('parishes');
+    }
+    // Level 4: Parish -> Villages
+    else if (currentLevel === 'parishes') {
+      if (currentSubcountyHierarchy) {
+        const matchedParish = currentSubcountyHierarchy.parishes.find(p => p.name.toLowerCase() === entityName.toLowerCase());
+        if (matchedParish) {
+          setSelectedParish(matchedParish);
+        }
       }
+      setCurrentLevel('villages');
+    }
+    // Level 5: Village -> Show localized details card
+    else if (currentLevel === 'villages') {
+      if (selectedParish && selectedParish.villages) {
+        const matchedVillage = selectedParish.villages.find(v => v.name.toLowerCase() === entityName.toLowerCase());
+        if (matchedVillage) {
+          setSelectedVillage(matchedVillage);
+          setShowVillageDetails(true);
+          return;
+        }
+      }
+      setSelectedVillage(createUgandaVillageNode({
+        name: entityName,
+        parishName: selectedParish?.name || 'Parish',
+        subcountyName: selectedSubcounty || 'Sub-County',
+        districtName: selectedDistrict || 'District',
+        shopDensity: 14,
+        weeklySalesVolumeUGX: 2400000
+      }));
+      setShowVillageDetails(true);
     }
   };
 
   // Universal tap detector supporting both clicks and touch gestures
-  const handleTapGesture = (entity: { id: string; name: string }, type: 'region' | 'district' | 'village') => {
+  const handleTapGesture = (
+    entity: { id: string; name: string }, 
+    type: 'region' | 'district' | 'subcounty' | 'parish' | 'village'
+  ) => {
     const currentTime = new Date().getTime();
     const tapLength = currentTime - lastTapRef.current;
     
     if (tapLength < 300 && tapLength > 0) {
-      // Double click / Double tap handler
       if (type === 'village') {
         handleEntityDoubleTap(entity);
       } else {
-        // If they double tap region or district, open and skip directly
         handleEntitySingleClick(entity.name);
       }
     } else {
-      // Single Click / Single tap handler
       if (type === 'village') {
-        setSelectedVillage(entity);
+        handleEntitySingleClick(entity.name);
       } else {
         handleEntitySingleClick(entity.name);
       }
@@ -662,19 +743,45 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   // UI listings based on active level
   const activeLevelEntities = useMemo(() => {
     if (selectedDivision === 'Kawempe') {
-      return KAWEMPE_PARISHES.map(p => ({ id: p.name, name: p.name }));
+      return KAWEMPE_PARISHES.map(p => ({ id: p.name, name: p.name, type: 'Parish' }));
     }
     if (currentLevel === 'regions') {
-      return adminHierarchy.regions;
+      return adminHierarchy.regions.map(r => ({ id: r.id, name: r.name, type: 'Region' }));
     } else if (currentLevel === 'districts') {
-      return adminHierarchy.districtsByRegion[selectedRegion || ''] || [];
-    } else {
+      return (adminHierarchy.districtsByRegion[selectedRegion || ''] || []).map(d => ({ id: d.id, name: d.name, type: 'District' }));
+    } else if (currentLevel === 'subcounties') {
       if (selectedDistrict === 'Kampala') {
-        return KAMPALA_DIVISIONS.map(d => ({ id: d.name, name: d.name }));
+        return KAMPALA_DIVISIONS.map(d => ({ id: d.name, name: d.name, type: 'Division' }));
       }
-      return adminHierarchy.villagesByDistrict[selectedDistrict || ''] || [];
+      if (selectedDistrict && UGANDA_DISTRICTS_DATA[selectedDistrict]) {
+        return UGANDA_DISTRICTS_DATA[selectedDistrict].subdivisions.map(s => ({
+          id: s.pcode || s.name,
+          name: s.name,
+          type: 'Sub-County'
+        }));
+      }
+      return (adminHierarchy.villagesByDistrict[selectedDistrict || ''] || []).map(v => ({ id: v.id, name: v.name, type: 'Sub-County' }));
+    } else if (currentLevel === 'parishes') {
+      if (currentSubcountyHierarchy) {
+        return currentSubcountyHierarchy.parishes.map(p => ({
+          id: p.id,
+          name: p.name,
+          type: p.type || 'Parish'
+        }));
+      }
+      return [];
+    } else {
+      // currentLevel === 'villages'
+      if (selectedParish && selectedParish.villages) {
+        return selectedParish.villages.map(v => ({
+          id: v.id,
+          name: v.name,
+          type: v.type || 'Village'
+        }));
+      }
+      return [];
     }
-  }, [currentLevel, selectedRegion, selectedDistrict, selectedDivision, adminHierarchy]);
+  }, [currentLevel, selectedRegion, selectedDistrict, selectedSubcounty, selectedParish, selectedDivision, adminHierarchy, currentSubcountyHierarchy]);
 
   // Generate dynamic stats to mock deep geographical records
   const dynamicMappedStats = useMemo(() => {
@@ -825,6 +932,8 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                     setCurrentLevel('regions');
                     setSelectedRegion(null);
                     setSelectedDistrict(null);
+                    setSelectedSubcounty(null);
+                    setSelectedParish(null);
                     setSelectedVillage(null);
                   }}
                   className="hover:text-yellow-500 transition-colors uppercase"
@@ -839,6 +948,8 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                       onClick={() => {
                         setCurrentLevel('districts');
                         setSelectedDistrict(null);
+                        setSelectedSubcounty(null);
+                        setSelectedParish(null);
                         setSelectedVillage(null);
                       }}
                       className="hover:text-yellow-500 transition-colors max-w-[80px] truncate uppercase"
@@ -854,8 +965,9 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                     <ChevronRight size={10} className="opacity-50" />
                     <button 
                       onClick={() => {
-                        setCurrentLevel('villages');
-                        setSelectedDivision(null);
+                        setCurrentLevel('subcounties');
+                        setSelectedSubcounty(null);
+                        setSelectedParish(null);
                         setSelectedVillage(null);
                       }}
                       className="hover:text-yellow-500 transition-colors max-w-[80px] truncate uppercase"
@@ -866,21 +978,47 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                   </>
                 )}
 
-                {selectedDivision && (
+                {selectedSubcounty && (
                   <>
                     <ChevronRight size={10} className="opacity-50" />
-                    <span className="text-yellow-500 max-w-[80px] truncate uppercase animate-pulse" title={selectedDivision}>
-                      {selectedDivision}
-                    </span>
+                    <button 
+                      onClick={() => {
+                        setCurrentLevel('parishes');
+                        setSelectedVillage(null);
+                      }}
+                      className="hover:text-yellow-500 transition-colors max-w-[80px] truncate uppercase"
+                      title={selectedSubcounty}
+                    >
+                      {selectedSubcounty}
+                    </button>
+                  </>
+                )}
+
+                {selectedParish && (
+                  <>
+                    <ChevronRight size={10} className="opacity-50" />
+                    <button 
+                      onClick={() => {
+                        setCurrentLevel('villages');
+                      }}
+                      className="hover:text-yellow-500 transition-colors max-w-[80px] truncate uppercase"
+                      title={selectedParish.name}
+                    >
+                      {selectedParish.name}
+                    </button>
                   </>
                 )}
 
                 {selectedVillage && (
                   <>
                     <ChevronRight size={10} className="opacity-50" />
-                    <span className="text-yellow-500 max-w-[80px] truncate uppercase" title={selectedVillage.name}>
+                    <button 
+                      onClick={() => setShowVillageDetails(true)}
+                      className="text-yellow-500 font-bold max-w-[80px] truncate uppercase underline" 
+                      title={selectedVillage.name}
+                    >
                       {selectedVillage.name}
-                    </span>
+                    </button>
                   </>
                 )}
               </div>
@@ -889,10 +1027,11 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
               <div className="p-3.5 bg-yellow-500/10 border-b border-yellow-500/10 text-[11px] leading-relaxed text-yellow-600 font-semibold flex gap-2">
                 <Compass className="w-4 h-4 text-yellow-500 shrink-0" />
                 <span>
-                  {selectedDivision === 'Kawempe' && "🎯 Hover over any Parish to highlight it. Click 'Up a Level' to return."}
                   {currentLevel === 'regions' && "🎯 Click any Region path or name to view local Districts."}
-                  {currentLevel === 'districts' && (selectedRegion === 'Central' ? "🎯 Click Kampala to drill down to Divisions in Kampala." : "🎯 Click any District to drill down to Mapped Villages.")}
-                  {currentLevel === 'villages' && !selectedDivision && (selectedDistrict === 'Kampala' ? "⚡ Click Kawempe Division on the map to explore its localized parishes." : "⚡ Double tap a village target to open the localized active metrics card.")}
+                  {currentLevel === 'districts' && "🎯 Click any District to explore Sub-Counties & Town Councils."}
+                  {currentLevel === 'subcounties' && "🎯 Click any Sub-County or Division to view Parishes & Wards."}
+                  {currentLevel === 'parishes' && "🎯 Click any Parish to explore its verified LC1 Villages & PDM SACCO nodes."}
+                  {currentLevel === 'villages' && "⚡ Click any Village to open its complete localized card with LC1 leadership & shop metrics."}
                 </span>
               </div>
 
@@ -900,10 +1039,12 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
               <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
                 <div className="flex items-center justify-between pb-1">
                   <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {selectedDivision === 'Kawempe' ? "Parishes in Kawempe" : (
-                      currentLevel === 'regions' ? "Regions" : (
-                        currentLevel === 'districts' ? `Districts in ${selectedRegion}` : (
-                          selectedDistrict === 'Kampala' ? "Divisions in Kampala" : `Villages in ${selectedDistrict}`
+                    {currentLevel === 'regions' ? "Regions" : (
+                      currentLevel === 'districts' ? `Districts in ${selectedRegion || 'Region'}` : (
+                        currentLevel === 'subcounties' ? `Sub-Counties in ${selectedDistrict || 'District'}` : (
+                          currentLevel === 'parishes' ? `Parishes in ${selectedSubcounty || 'Sub-County'}` : (
+                            `Villages in ${selectedParish?.name || 'Parish'}`
+                          )
                         )
                       )
                     )}
@@ -917,22 +1058,25 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                   {activeLevelEntities.map((entity, idx) => {
                     const isHovered = hoveredEntity === entity.name;
                     const isSelected = 
-                      (selectedDivision === 'Kawempe' && hoveredEntity === entity.name) ||
                       (currentLevel === 'regions' && selectedRegion === entity.name) ||
                       (currentLevel === 'districts' && selectedDistrict === entity.name) ||
+                      (currentLevel === 'subcounties' && selectedSubcounty === entity.name) ||
+                      (currentLevel === 'parishes' && selectedParish?.name === entity.name) ||
                       (currentLevel === 'villages' && selectedVillage?.name === entity.name);
 
                     return (
                       <div
-                        key={entity.id}
+                        key={entity.id || idx}
                         onMouseEnter={() => setHoveredEntity(entity.name)}
                         onMouseLeave={() => setHoveredEntity(null)}
                         onClick={() => {
-                          if (selectedDivision === 'Kawempe') {
-                            setHoveredEntity(entity.name);
-                          } else {
-                            handleTapGesture(entity, currentLevel === 'regions' ? 'region' : currentLevel === 'districts' ? 'district' : 'village');
-                          }
+                          handleTapGesture(
+                            entity, 
+                            currentLevel === 'regions' ? 'region' : 
+                            currentLevel === 'districts' ? 'district' : 
+                            currentLevel === 'subcounties' ? 'subcounty' : 
+                            currentLevel === 'parishes' ? 'parish' : 'village'
+                          );
                         }}
                         className={`w-full text-left px-3 py-2 rounded-xl border text-xs font-bold transition-all duration-150 cursor-pointer flex items-center justify-between ${
                           isSelected
@@ -943,22 +1087,23 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          {selectedDivision === 'Kawempe' && <Compass className="w-3.5 h-3.5 opacity-60 text-sky-400" />}
-                          {selectedDivision !== 'Kawempe' && currentLevel === 'regions' && <Map className="w-3.5 h-3.5 opacity-60 text-indigo-400" />}
-                          {selectedDivision !== 'Kawempe' && currentLevel === 'districts' && <Building2 className="w-3.5 h-3.5 opacity-60 text-emerald-400" />}
-                          {selectedDivision !== 'Kawempe' && currentLevel === 'villages' && <MapPin className="w-3.5 h-3.5 opacity-60 text-red-400" />}
+                          {currentLevel === 'regions' && <Map className="w-3.5 h-3.5 opacity-60 text-indigo-400 shrink-0" />}
+                          {currentLevel === 'districts' && <Building2 className="w-3.5 h-3.5 opacity-60 text-emerald-400 shrink-0" />}
+                          {currentLevel === 'subcounties' && <Compass className="w-3.5 h-3.5 opacity-60 text-sky-400 shrink-0" />}
+                          {currentLevel === 'parishes' && <Award className="w-3.5 h-3.5 opacity-60 text-yellow-500 shrink-0" />}
+                          {currentLevel === 'villages' && <MapPin className="w-3.5 h-3.5 opacity-60 text-red-400 shrink-0" />}
                           <span className="truncate">{entity.name}</span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {selectedDivision === 'Kawempe' ? (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 text-sky-500 font-bold border border-sky-500/10">Parish</span>
-                          ) : (
-                            currentLevel === 'villages' ? (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 font-bold border border-emerald-500/10">Active</span>
-                            ) : (
-                              <ChevronRight size={12} className="opacity-50" />
-                            )
-                          )}
+                          <span className="text-[9px] px-1.5 py-0.5 rounded font-bold border opacity-80 bg-slate-500/10 text-slate-400 border-slate-500/20">
+                            {entity.type || (
+                              currentLevel === 'regions' ? 'Region' :
+                              currentLevel === 'districts' ? 'District' :
+                              currentLevel === 'subcounties' ? 'Sub-County' :
+                              currentLevel === 'parishes' ? 'Parish' : 'Village'
+                            )}
+                          </span>
+                          <ChevronRight size={12} className="opacity-50" />
                         </div>
                       </div>
                     );
@@ -1042,25 +1187,9 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                   
                   {/* Floating Analytical Controls */}
                   <div className="absolute top-4 left-4 z-20 flex gap-2">
-                    {(currentLevel !== 'regions' || selectedDivision) && (
+                    {currentLevel !== 'regions' && (
                       <button
-                        onClick={() => {
-                          if (selectedDivision) {
-                            setSelectedDivision(null);
-                            handleReset();
-                          } else if (currentLevel === 'villages') {
-                            setCurrentLevel('districts');
-                            setSelectedDistrict(null);
-                            setSelectedVillage(null);
-                            setScale(2.2);
-                          } else if (currentLevel === 'districts') {
-                            setCurrentLevel('regions');
-                            setSelectedRegion(null);
-                            setScale(1);
-                            setSelectedDistrict(null);
-                            setSelectedVillage(null);
-                          }
-                        }}
+                        onClick={handleBack}
                         className={`flex items-center space-x-1 py-1.5 px-3 rounded-lg text-xs font-bold shadow-lg border transition-all ${
                           theme === 'dark' 
                             ? 'bg-slate-900/90 border-slate-800 text-white hover:bg-slate-800' 
@@ -1068,23 +1197,52 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                         }`}
                       >
                         <ArrowLeft size={14} />
-                        <span>Up a level</span>
+                        <span>
+                          {currentLevel === 'villages' && "Back to Parishes"}
+                          {currentLevel === 'parishes' && "Back to Sub-Counties"}
+                          {currentLevel === 'subcounties' && "Back to Districts"}
+                          {currentLevel === 'districts' && "Back to Regions"}
+                        </span>
                       </button>
                     )}
                   </div>
 
-                  <motion.div 
-                    style={{ 
-                      scale: springScale,
-                      x: springX,
-                      y: springY,
-                      transformOrigin: 'center'
-                    }}
-                    drag
-                    dragMomentum={true}
-                    dragElastic={0.05}
-                    className="w-full h-full flex items-center justify-center country-svg-container"
-                  >
+                  {/* Level 4 & 5 Drill-down: Parish & Village interactive canvas */}
+                  {(currentLevel === 'parishes' || currentLevel === 'villages') && currentSubcountyHierarchy ? (
+                    <div className="w-full h-full overflow-y-auto">
+                      <ParishAndVillageCanvas
+                        currentLevel={currentLevel === 'parishes' ? 'parishes' : 'villages'}
+                        parishes={currentSubcountyHierarchy.parishes}
+                        selectedParish={selectedParish}
+                        selectedVillage={selectedVillage}
+                        hoveredEntity={hoveredEntity}
+                        subcountyName={selectedSubcounty || 'Sub-County'}
+                        districtName={selectedDistrict || 'District'}
+                        theme={theme}
+                        onSelectParish={(parish) => {
+                          setSelectedParish(parish);
+                          setCurrentLevel('villages');
+                        }}
+                        onSelectVillage={(village) => {
+                          setSelectedVillage(village);
+                          setShowVillageDetails(true);
+                        }}
+                        onHoverEntity={(name) => setHoveredEntity(name)}
+                      />
+                    </div>
+                  ) : (
+                    <motion.div 
+                      style={{ 
+                        scale: springScale,
+                        x: springX,
+                        y: springY,
+                        transformOrigin: 'center'
+                      }}
+                      drag
+                      dragMomentum={true}
+                      dragElastic={0.05}
+                      className="w-full h-full flex items-center justify-center country-svg-container"
+                    >
                     <svg
                       viewBox={viewBox}
                       className="w-full h-full max-w-full max-h-full select-none"
@@ -1197,157 +1355,84 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                               </g>
                             );
                           })
-                        ) : countryId === 'UG' && selectedDistrict && currentLevel === 'villages' ? (
+                        ) : countryId === 'UG' && selectedDistrict && currentLevel === 'subcounties' ? (
                           selectedDistrict === 'Kampala' ? (
-                            selectedDivision === 'Kawempe' ? (
-                              KAWEMPE_PARISHES.map((parish, idx) => {
-                                const isHovered = hoveredEntity === parish.name;
-                                
-                                let fillColor = theme === 'dark' ? '#0c4a6e' : '#bae6fd';
-                                let strokeColor = theme === 'dark' ? '#0284c7' : '#0284c7';
-                                if (parish.color === 'orange') {
-                                  fillColor = theme === 'dark' ? '#7c2d12' : '#fed7aa';
-                                  strokeColor = theme === 'dark' ? '#f97316' : '#f97316';
-                                }
-
-                                return (
-                                  <g key={`modal-kawempe-parish-${idx}`}>
-                                    <motion.path
-                                      d={parish.d}
-                                      fill={fillColor}
-                                      stroke={strokeColor}
-                                      strokeWidth={isHovered ? "2.2" : "1.4"}
-                                      strokeLinejoin="round"
-                                      strokeLinecap="round"
-                                      initial={false}
-                                      animate={{
-                                        fill: isHovered 
-                                          ? (theme === 'dark' ? '#1e3a8a' : '#93c5fd') 
-                                          : fillColor,
-                                        stroke: isHovered ? '#025080' : strokeColor,
-                                        transition: { duration: 0.2 }
-                                      }}
-                                      onMouseEnter={() => setHoveredEntity(parish.name)}
-                                      onMouseLeave={() => setHoveredEntity(null)}
-                                      className="transition-all duration-300 cursor-pointer outline-none"
-                                    />
+                            KAMPALA_DIVISIONS.map((division, idx) => {
+                              const isHovered = hoveredEntity === division.name;
+                              return (
+                                <g key={`modal-kampala-div-${idx}`}>
+                                  <motion.path
+                                    d={division.d}
+                                    fill={theme === 'dark' ? '#1e293b' : '#f8fafc'}
+                                    stroke={theme === 'dark' ? '#475569' : '#94a3b8'}
+                                    strokeWidth={isHovered ? "2.0" : "1.4"}
+                                    strokeLinejoin="round"
+                                    strokeLinecap="round"
+                                    initial={false}
+                                    animate={{
+                                      fill: isHovered 
+                                        ? (theme === 'dark' ? '#1e3a8a' : '#dbeafe') 
+                                        : (theme === 'dark' ? '#1e293b' : '#f8fafc'),
+                                      transition: { duration: 0.2 }
+                                    }}
+                                    onMouseEnter={() => setHoveredEntity(division.name)}
+                                    onMouseLeave={() => setHoveredEntity(null)}
+                                    onClick={() => {
+                                      const divName = division.name.replace(" Division", "");
+                                      setSelectedSubcounty(divName);
+                                      setCurrentLevel('parishes');
+                                    }}
+                                    className="transition-all duration-300 cursor-pointer outline-none"
+                                  />
+                                  <g 
+                                    className="cursor-pointer"
+                                    onClick={() => {
+                                      const divName = division.name.replace(" Division", "");
+                                      setSelectedSubcounty(divName);
+                                      setCurrentLevel('parishes');
+                                    }}
+                                  >
                                     <text
-                                      x={parish.labelX}
-                                      y={parish.labelY}
+                                      x={division.labelX}
+                                      y={division.labelY}
                                       textAnchor="middle"
                                       stroke={theme === 'dark' ? '#090d16' : '#ffffff'}
-                                      strokeWidth="4.0"
+                                      strokeWidth="4.5"
                                       strokeLinejoin="round"
-                                      className="text-[9.5px] font-black select-none pointer-events-none fill-none opacity-95"
-                                      style={{ fontFamily: 'var(--font-sans)', letterSpacing: '0.03em' }}
+                                      className="text-[12.5px] font-black select-none pointer-events-none fill-none opacity-95"
+                                      style={{ fontFamily: 'var(--font-sans)', letterSpacing: '0.04em' }}
                                     >
-                                      {parish.name.replace(" Parish", "")}
+                                      {division.name.replace(" Division", "")}
                                     </text>
                                     <text
-                                      x={parish.labelX}
-                                      y={parish.labelY}
+                                      x={division.labelX}
+                                      y={division.labelY}
                                       textAnchor="middle"
-                                      className={`text-[9.5px] font-black select-none pointer-events-none fill-current ${
-                                        theme === 'dark' ? 'text-slate-100' : 'text-slate-900'
+                                      className={`text-[12.5px] font-black select-none pointer-events-none fill-current ${
+                                        isHovered ? (theme === 'dark' ? 'text-yellow-400' : 'text-blue-700') : (theme === 'dark' ? 'text-slate-100' : 'text-slate-900')
                                       }`}
-                                      style={{ fontFamily: 'var(--font-sans)', letterSpacing: '0.03em' }}
+                                      style={{ fontFamily: 'var(--font-sans)', letterSpacing: '0.04em' }}
                                     >
-                                      {parish.name.replace(" Parish", "")}
+                                      {division.name.replace(" Division", "")}
                                     </text>
                                     <text
-                                      x={parish.labelX}
-                                      y={parish.labelY + 9}
+                                      x={division.labelX}
+                                      y={division.labelY + 13}
                                       textAnchor="middle"
-                                      className={`text-[6px] font-extrabold tracking-widest select-none pointer-events-none fill-current ${
-                                        theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                                      className={`text-[8px] font-black tracking-widest select-none pointer-events-none fill-current ${
+                                        isHovered ? "text-yellow-500 font-extrabold" : (theme === 'dark' ? 'text-slate-400' : 'text-slate-500')
                                       }`}
                                       style={{ fontFamily: 'var(--font-sans)' }}
                                     >
-                                      PARISH
+                                      EXPLORE PARISHES →
                                     </text>
                                   </g>
-                                );
-                              })
-                            ) : (
-                              KAMPALA_DIVISIONS.map((division, idx) => {
-                                const isHovered = hoveredEntity === division.name;
-                                return (
-                                  <g key={`modal-kampala-div-${idx}`}>
-                                    <motion.path
-                                      d={division.d}
-                                      fill={theme === 'dark' ? '#1e293b' : '#f8fafc'}
-                                      stroke={theme === 'dark' ? '#475569' : '#94a3b8'}
-                                      strokeWidth={isHovered ? "2.0" : "1.4"}
-                                      strokeLinejoin="round"
-                                      strokeLinecap="round"
-                                      initial={false}
-                                      animate={{
-                                        fill: isHovered 
-                                          ? (division.name === "Kawempe Division" ? (theme === 'dark' ? '#1e3a8a' : '#dbeafe') : (theme === 'dark' ? '#1e1b4b' : '#e0e7ff')) 
-                                          : (theme === 'dark' ? '#1e293b' : '#f8fafc'),
-                                        transition: { duration: 0.2 }
-                                      }}
-                                      onMouseEnter={() => setHoveredEntity(division.name)}
-                                      onMouseLeave={() => setHoveredEntity(null)}
-                                      onClick={() => {
-                                        if (division.name === "Kawempe Division") {
-                                          setSelectedDivision("Kawempe");
-                                          handleReset();
-                                        }
-                                      }}
-                                      className="transition-all duration-300 cursor-pointer outline-none"
-                                    />
-                                    <g 
-                                      className="cursor-pointer"
-                                      onClick={() => {
-                                        if (division.name === "Kawempe Division") {
-                                          setSelectedDivision("Kawempe");
-                                          handleReset();
-                                        }
-                                      }}
-                                    >
-                                      <text
-                                        x={division.labelX}
-                                        y={division.labelY}
-                                        textAnchor="middle"
-                                        stroke={theme === 'dark' ? '#090d16' : '#ffffff'}
-                                        strokeWidth="4.5"
-                                        strokeLinejoin="round"
-                                        className="text-[12.5px] font-black select-none pointer-events-none fill-none opacity-95"
-                                        style={{ fontFamily: 'var(--font-sans)', letterSpacing: '0.04em' }}
-                                      >
-                                        {division.name.replace(" Division", "")}
-                                      </text>
-                                      <text
-                                        x={division.labelX}
-                                        y={division.labelY}
-                                        textAnchor="middle"
-                                        className={`text-[12.5px] font-black select-none pointer-events-none fill-current ${
-                                          isHovered ? (theme === 'dark' ? 'text-yellow-400' : 'text-blue-700') : (theme === 'dark' ? 'text-slate-100' : 'text-slate-900')
-                                        }`}
-                                        style={{ fontFamily: 'var(--font-sans)', letterSpacing: '0.04em' }}
-                                      >
-                                        {division.name.replace(" Division", "")}
-                                      </text>
-                                      <text
-                                        x={division.labelX}
-                                        y={division.labelY + 13}
-                                        textAnchor="middle"
-                                        className={`text-[8px] font-black tracking-widest select-none pointer-events-none fill-current ${
-                                          division.name === "Kawempe Division" ? "text-yellow-500 font-extrabold" : (theme === 'dark' ? 'text-slate-400' : 'text-slate-500')
-                                        }`}
-                                        style={{ fontFamily: 'var(--font-sans)' }}
-                                      >
-                                        {division.name === "Kawempe Division" ? "EXPLORE PARISHES →" : "DIVISION"}
-                                      </text>
-                                    </g>
-                                  </g>
-                                );
-                              })
-                            )
+                                </g>
+                              );
+                            })
                           ) : (
                             UGANDA_DISTRICTS_DATA[selectedDistrict]?.subdivisions.map((sub, idx) => {
-                              const isHovered = hoveredEntity === sub.name || selectedVillage?.name === sub.name;
+                              const isHovered = hoveredEntity === sub.name || selectedSubcounty === sub.name;
                               const fillColor = isHovered 
                                 ? (theme === 'dark' ? '#1e3a8a' : '#dbeafe') 
                                 : (theme === 'dark' ? '#1e293b' : '#ffffff');
@@ -1370,7 +1455,10 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                                     }}
                                     onMouseEnter={() => setHoveredEntity(sub.name)}
                                     onMouseLeave={() => setHoveredEntity(null)}
-                                    onClick={() => handleTapGesture({ id: sub.pcode || `sub-${idx}`, name: sub.name }, 'village')}
+                                    onClick={() => {
+                                      setSelectedSubcounty(sub.name);
+                                      setCurrentLevel('parishes');
+                                    }}
                                     className="transition-all duration-300 cursor-pointer outline-none"
                                   />
                                   <g className="pointer-events-none select-none">
@@ -1407,18 +1495,18 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                                       className="text-[7.5px] font-extrabold tracking-widest pointer-events-none select-none fill-none opacity-90"
                                       style={{ fontFamily: 'var(--font-sans)' }}
                                     >
-                                      SUB-COUNTY
+                                      EXPLORE PARISHES →
                                     </text>
                                     <text
                                       x={sub.labelX}
                                       y={sub.labelY + 12}
                                       textAnchor="middle"
                                       className={`text-[7.5px] font-extrabold tracking-widest pointer-events-none select-none fill-current ${
-                                        theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                                        isHovered ? 'text-yellow-400 font-bold' : (theme === 'dark' ? 'text-slate-300' : 'text-slate-600')
                                       }`}
                                       style={{ fontFamily: 'var(--font-sans)' }}
                                     >
-                                      SUB-COUNTY
+                                      EXPLORE PARISHES →
                                     </text>
                                   </g>
                                 </g>
@@ -1632,6 +1720,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                       </g>
                     </svg>
                   </motion.div>
+                )}
 
                   {/* SVG Map Legend */}
                   <div className="absolute bottom-4 left-4 z-15 p-2 rounded-lg border backdrop-blur-md flex items-center gap-4 text-[10px] uppercase font-bold tracking-wider shadow-md bg-white border-slate-200 text-slate-700 bg-opacity-95">
@@ -1679,106 +1768,21 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
           </div>
         </motion.div>
 
-        {/* Mapped Village Detail Overlay Card (Triggered on Double Tap / Dialog selection) */}
-        <AnimatePresence>
-          {showVillageDetails && selectedVillage && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="absolute inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowVillageDetails(false)}
-            >
-              <div 
-                className={`relative w-full max-w-md rounded-2xl shadow-2xl p-6 border overflow-hidden ${
-                  theme === 'dark' ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-                }`}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                <div className="flex justify-between items-start pb-4 border-b border-dashed border-slate-700/30">
-                  <div>
-                    <span className="text-[10px] uppercase bg-rose-500/10 text-rose-500 font-bold px-2 py-0.5 rounded border border-rose-500/10 tracking-widest">
-                      Village node
-                    </span>
-                    <h3 className="text-xl font-black tracking-tight mt-1">
-                      {selectedVillage.name}
-                    </h3>
-                  </div>
-                  <button 
-                    onClick={() => setShowVillageDetails(false)}
-                    className="p-1 rounded-lg hover:bg-slate-100/10 transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                {/* KPI stats */}
-                <div className="py-4 space-y-3.5">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className={`p-3 rounded-xl border ${theme === 'dark' ? 'bg-slate-950/40 border-slate-800/80' : 'bg-slate-50 border-slate-100'}`}>
-                      <span className="block text-[9px] uppercase font-bold text-slate-400">Shop density</span>
-                      <span className="text-md font-black mt-1 block flex items-center gap-1.5 text-rose-500">
-                        <Building2 size={14} />
-                        {dynamicMappedStats.density} Shops/km²
-                      </span>
-                    </div>
-                    <div className={`p-3 rounded-xl border ${theme === 'dark' ? 'bg-slate-950/40 border-slate-800/80' : 'bg-slate-50 border-slate-100'}`}>
-                      <span className="block text-[9px] uppercase font-bold text-slate-400">Weekly sales Volume</span>
-                      <span className="text-md font-black mt-1 block flex items-center gap-1.5 text-emerald-500">
-                        <TrendingUp size={14} />
-                        {countryId === 'UG' ? 'USh ' : '₪ '} 
-                        {dynamicMappedStats.mockVolume.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Descriptive parameters */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-700/10">
-                      <span className="opacity-60 flex items-center gap-1.5">
-                        <Users size={12} className="text-yellow-500" />
-                        Contributors Mapped
-                      </span>
-                      <span>{dynamicMappedStats.activeContributors} Active</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-700/10">
-                      <span className="opacity-60 flex items-center gap-1.5">
-                        <Calendar size={12} className="text-yellow-500" />
-                        Verification date
-                      </span>
-                      <span>Jun 12, 2026</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs font-bold py-1 border-b border-slate-700/10">
-                      <span className="opacity-60 flex items-center gap-1.5">
-                        <Compass size={12} className="text-yellow-500" />
-                        Map coordinates
-                      </span>
-                      <span className="font-mono text-[10px] tracking-wider text-slate-400">32.61° E, 0.38° N</span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs font-bold py-1">
-                      <span className="opacity-60 flex items-center gap-1.5">
-                        <BarChart2 size={12} className="text-yellow-500" />
-                        Offline Sync status
-                      </span>
-                      <span className="text-emerald-500 flex items-center gap-1 font-mono uppercase text-[10px]">
-                        ● Synced
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions button */}
-                <button
-                  onClick={() => setShowVillageDetails(false)}
-                  className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-black text-xs uppercase tracking-widest rounded-xl transition-all duration-200 mt-2 hover:shadow-lg shadow-md"
-                >
-                  Return to map
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Authenticated Deep Village Profile Modal (LC1 Leaders, PDM SACCO, Trading Nodes) */}
+        <VillageProfileCardModal
+          village={showVillageDetails ? selectedVillage : null}
+          parish={selectedParish}
+          districtName={selectedDistrict}
+          subcountyName={selectedSubcounty}
+          theme={theme}
+          onClose={() => {
+            setShowVillageDetails(false);
+          }}
+          onExploreOtherParishes={() => {
+            setShowVillageDetails(false);
+            setCurrentLevel('parishes');
+          }}
+        />
 
         {showProfileModal && (
           <CountryProfileModal

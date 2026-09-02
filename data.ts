@@ -268,7 +268,7 @@ export const allAfricanCountries: Country[] = [
             { 
                 id: 123, 
                 name: 'Goma', 
-                level: 3, 
+                level: 4, 
                 countryCode: 'UG', 
                 parentAdminLevelId: 12,
                 office: {
@@ -285,10 +285,126 @@ export const allAfricanCountries: Country[] = [
                 leaders: [
                     { id: 'ldr-123-1', name: 'Humphrey Kiwanuka', title: 'Division Senior Assistant Secretary', phone: '+256 756 221 889', email: 'h.kiwanuka@mukono.go.ug', term: '2021 - 2026', department: 'Division Administration', status: 'Active' }
                 ]
+            },
+            {
+                id: 1231,
+                name: 'Nyize Parish',
+                level: 5,
+                countryCode: 'UG',
+                parentAdminLevelId: 123,
+                office: {
+                    officeName: 'Nyize Parish Local Administration',
+                    building: 'Nyize Parish Hall',
+                    street: 'Nyize Main Road',
+                    townOrCity: 'Goma Division, Mukono',
+                    postalCode: 'P.O. Box 110 Mukono',
+                    phone: '+256 772 881 229',
+                    email: 'nyize.parish@mukono.go.ug',
+                    coordinates: { latitude: 0.3812, longitude: 32.7301 },
+                    workingHours: 'Monday - Friday: 08:30 AM - 04:30 PM'
+                },
+                leaders: [
+                    { id: 'ldr-1231-1', name: 'Ronald Ssebaggala', title: 'Parish Chief (LC2)', phone: '+256 772 881 229', email: 'r.ssebaggala@mukono.go.ug', term: '2021 - 2026', department: 'Parish Administration', status: 'Active' }
+                ]
+            },
+            {
+                id: 12311,
+                name: 'Nyize Central Village',
+                level: 6,
+                countryCode: 'UG',
+                parentAdminLevelId: 1231,
+                office: {
+                    officeName: 'Nyize Central LC1 Local Office',
+                    building: 'Community Civic Centre',
+                    street: 'Nyize Trading Centre Road',
+                    townOrCity: 'Nyize, Mukono',
+                    postalCode: 'P.O. Box 110 Mukono',
+                    phone: '+256 782 554 112',
+                    email: 'lc1.nyizecentral@mukono.go.ug',
+                    coordinates: { latitude: 0.3820, longitude: 32.7310 },
+                    workingHours: 'Monday - Saturday: 08:00 AM - 06:00 PM'
+                },
+                leaders: [
+                    { id: 'ldr-12311-1', name: 'Patrick Mukasa', title: 'LC1 Chairperson', phone: '+256 782 554 112', email: 'p.mukasa@mukono.go.ug', term: '2021 - 2026', department: 'Local Council 1', status: 'Active' }
+                ]
+            },
+            {
+                id: 141,
+                name: 'Kiryandongo Town Council',
+                level: 4,
+                countryCode: 'UG',
+                parentAdminLevelId: 14,
+                office: {
+                    officeName: 'Kiryandongo Town Council Headquarters',
+                    building: 'Civic Centre Administration Complex',
+                    street: 'Main Gulu Highway',
+                    townOrCity: 'Kiryandongo',
+                    postalCode: 'P.O. Box 137 Kiryandongo',
+                    phone: '+256 414 690 120',
+                    email: 'tc@kiryandongo.go.ug',
+                    coordinates: { latitude: 2.0165, longitude: 32.0832 },
+                    workingHours: 'Monday - Friday: 08:00 AM - 05:00 PM'
+                },
+                leaders: [
+                    { id: 'ldr-141-1', name: 'Hon. Charles Mwaka', title: 'LC3 Chairperson', phone: '+256 772 109 432', email: 'c.mwaka@kiryandongo.go.ug', term: '2021 - 2026', department: 'Urban Council', status: 'Active' },
+                    { id: 'ldr-141-2', name: 'Alfred Okello', title: 'Town Clerk / SAS', phone: '+256 701 445 221', email: 'townclerk@kiryandongo.go.ug', term: '2022 - 2027', department: 'Executive', status: 'Active' }
+                ]
+            },
+            {
+                id: 1411,
+                name: 'Central Ward',
+                level: 5,
+                countryCode: 'UG',
+                parentAdminLevelId: 141,
+                office: {
+                    officeName: 'Central Ward Administration Office',
+                    building: 'Kiryandongo Ward Complex',
+                    street: 'Market Road',
+                    townOrCity: 'Kiryandongo Town Council',
+                    postalCode: 'P.O. Box 137 Kiryandongo',
+                    phone: '+256 772 341 890',
+                    email: 'centralward@kiryandongo.go.ug',
+                    coordinates: { latitude: 2.0165, longitude: 32.0832 },
+                    workingHours: 'Monday - Friday: 08:30 AM - 04:30 PM'
+                },
+                leaders: [
+                    { id: 'ldr-1411-1', name: 'Grace Akello', title: 'Parish / Ward Chief', phone: '+256 772 341 890', email: 'g.akello@kiryandongo.go.ug', term: '2021 - 2026', department: 'Ward Bureau', status: 'Active' },
+                    { id: 'ldr-1411-2', name: 'John Bosco Ogwal', title: 'LC2 Chairperson', phone: '+256 782 119 402', email: 'jb.ogwal@kiryandongo.go.ug', term: '2021 - 2026', department: 'Local Council 2', status: 'Active' }
+                ]
+            },
+            {
+                id: 14111,
+                name: 'Kiryandongo Central Cell',
+                level: 6,
+                countryCode: 'UG',
+                parentAdminLevelId: 1411,
+                office: {
+                    officeName: 'Kiryandongo Central LC1 Office',
+                    building: 'Central Commercial Plaza',
+                    street: 'Central Market Street',
+                    townOrCity: 'Kiryandongo Town Council',
+                    postalCode: 'P.O. Box 137 Kiryandongo',
+                    phone: '+256 772 341 890',
+                    email: 'lc1.kiryandongocentral@kiryandongo.go.ug',
+                    coordinates: { latitude: 2.0165, longitude: 32.0832 },
+                    workingHours: 'Monday - Saturday: 08:00 AM - 06:00 PM'
+                },
+                leaders: [
+                    { id: 'ldr-14111-1', name: 'Musa Byamukama', title: 'LC1 Chairperson', phone: '+256 772 341 890', email: 'm.byamukama@kiryandongo.go.ug', term: '2021 - 2026', department: 'Local Council 1', status: 'Active' },
+                    { id: 'ldr-14111-2', name: 'Fatuma Nabukenya', title: 'Vice Chairperson', phone: '+256 701 998 123', email: 'f.nabukenya@kiryandongo.go.ug', term: '2021 - 2026', department: 'Local Council 1', status: 'Active' },
+                    { id: 'ldr-14111-3', name: 'David Opio', title: 'Secretary for Defence', phone: '+256 752 443 219', email: 'd.opio@kiryandongo.go.ug', term: '2021 - 2026', department: 'Security Liaison', status: 'Active' }
+                ]
             }
         ], 
-        adminLevelNames: [{level: 1, name: "Region"}, {level: 2, name: "District"}, {level: 3, name: "Village"}], 
-        numberOfAdminLevels: 3, numberOfElectoralLevels: 3, numberOfEconomicLevels: 2,
+        adminLevelNames: [
+            { level: 1, name: "Region" },
+            { level: 2, name: "District / City (LC5)" },
+            { level: 3, name: "County / Municipality (LC4)" },
+            { level: 4, name: "Sub-County / Town Council (LC3)" },
+            { level: 5, name: "Parish / Ward (LC2)" },
+            { level: 6, name: "Village / Cell / Zone (LC1)" }
+        ], 
+        numberOfAdminLevels: 6, numberOfElectoralLevels: 3, numberOfEconomicLevels: 2,
         electoralLevelNames: [{ level: 1, name: "Presidential" }, { level: 2, name: "Parliamentary" }, { level: 3, name: "Local Council" }],
         loyaltyProgram: { enabled: true, earningThreshold: 15000, redemptionValue: 100 },
         currencyDenominators: [

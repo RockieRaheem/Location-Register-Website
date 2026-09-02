@@ -72,7 +72,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
       setFirebaseUser(user);
       setIsAuthReady(true);
       if (user) {
-        const isOwner = user.email === 'jabuyapm@gmail.com';
+        const isOwner = user.email === 'jabuyapm@gmail.com' || user.email === 'kamwangaraheem2050@gmail.com';
         const userProfile: User = {
           id: user.uid,
           name: user.displayName || 'User',
@@ -81,7 +81,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
           bio: isOwner ? 'System Administrator' : '',
           avatar: user.photoURL || null
         };
-        saveUserProfile(userProfile as any);
+        saveUserProfile({ ...userProfile, uid: user.uid });
         
         setUser(userProfile);
       }

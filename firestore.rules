@@ -28,6 +28,7 @@ service cloud.firestore {
     function isAdmin() {
       return isVerified() && (
         request.auth.token.email == "jabuyapm@gmail.com" ||
+        request.auth.token.email == "kamwangaraheem2050@gmail.com" ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
@@ -91,7 +92,12 @@ service cloud.firestore {
     function isValidUser(data, userId) {
       return data.keys().hasAll(['uid', 'email']) &&
              data.uid == userId &&
-             data.email is string && data.email.size() > 0 && data.email.size() < 256;
+             data.email is string && data.email.size() > 0 && data.email.size() < 256 &&
+             (!('name' in data) || (data.name is string && data.name.size() < 200)) &&
+             (!('role' in data) || (data.role is string && data.role.size() < 50)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() < 500)) &&
+             (!('avatar' in data) || data.avatar == null || (data.avatar is string && data.avatar.size() < 2000)) &&
+             (!('id' in data) || (data.id is string || data.id is number));
     }
 
     function isValidRegionalLevel(data) {
@@ -117,7 +123,7 @@ service cloud.firestore {
         incoming().email == existing().email &&
         (
           // Action: Update Profile
-          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'bio', 'avatar'])) ||
+          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'bio', 'avatar', 'id', 'role', 'gender', 'dateOfBirth', 'idType', 'idNumber', 'idDocument', 'selfie'])) ||
           // Action: Admin Role Change
           (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'status']))
         )
@@ -127,9 +133,8 @@ service cloud.firestore {
 
     // Shops
     match /shops/{shopId} {
-      allow get: if isSignedIn();
-      allow list: if isVerified();
-      allow create: if isAdmin() && isValidShop(incoming()) && isValidId(shopId);
+      allow read: if true;
+      allow create: if (isAdmin() || isVerified()) && isValidShop(incoming()) && isValidId(shopId);
       allow update: if (isAdmin() || (isSignedIn() && existing().ownerId == request.auth.uid)) && isValidId(shopId) && isValidShop(incoming()) && (
         incoming().id == existing().id &&
         (
@@ -143,8 +148,8 @@ service cloud.firestore {
     // Products
     match /products/{productId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidProduct(incoming()) && isValidId(productId);
-      allow update: if isAdmin() && isValidProduct(incoming()) && isValidId(productId) && (
+      allow create: if (isAdmin() || isVerified()) && isValidProduct(incoming()) && isValidId(productId);
+      allow update: if (isAdmin() || isVerified()) && isValidProduct(incoming()) && isValidId(productId) && (
         incoming().id == existing().id &&
         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'status', 'barcode', 'manufacturer', 'category', 'baseUnit', 'baseQuantity', 'containerUnit', 'containerQuantity', 'saleUnits', 'hasBatchNumber', 'hasExpiryDate', 'isGlobal'])
       );
@@ -153,24 +158,20 @@ service cloud.firestore {
 
     // Stock Items
     match /stock/{stockId} {
-      allow get: if true;
-      allow list: if true;
-      allow create: if isVerified() && isValidStock(incoming()) && isValidId(stockId) && (
-        isAdmin() || (exists(/databases/$(database)/documents/shops/$(string(incoming().shopId))) && get(/databases/$(database)/documents/shops/$(string(incoming().shopId))).data.ownerId == request.auth.uid)
-      );
-      allow update: if isVerified() && isValidStock(incoming()) && isValidId(stockId) && (
+      allow read: if true;
+      allow create: if (isAdmin() || isVerified()) && isValidStock(incoming()) && isValidId(stockId);
+      allow update: if (isAdmin() || isVerified()) && isValidStock(incoming()) && isValidId(stockId) && (
         incoming().id == existing().id &&
-        (isAdmin() || (exists(/databases/$(database)/documents/shops/$(string(existing().shopId))) && get(/databases/$(database)/documents/shops/$(string(existing().shopId))).data.ownerId == request.auth.uid)) &&
         incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'unitPrice', 'customName', 'reorderPoint', 'allowMix', 'supplier', 'unit', 'currency', 'category', 'barcode', 'manufacturer', 'baseUnit', 'hasMultipleSaleUnits'])
       );
-      allow delete: if isVerified() && (isAdmin() || (exists(/databases/$(database)/documents/shops/$(string(existing().shopId))) && get(/databases/$(database)/documents/shops/$(string(existing().shopId))).data.ownerId == request.auth.uid));
+      allow delete: if isVerified();
     }
 
     // Regional Economic Levels
     match /regionalEconomicLevels/{levelId} {
       allow read: if true;
-      allow create: if isAdmin() && isValidRegionalLevel(incoming()) && isValidId(levelId);
-      allow update: if isAdmin() && isValidRegionalLevel(incoming()) && isValidId(levelId) && (
+      allow create: if (isAdmin() || isVerified()) && isValidRegionalLevel(incoming()) && isValidId(levelId);
+      allow update: if (isAdmin() || isVerified()) && isValidRegionalLevel(incoming()) && isValidId(levelId) && (
         incoming().id == existing().id &&
         incoming().diff(existing()).affectedKeys().hasOnly(['name', 'abbreviation', 'flag', 'description', 'countries', 'level'])
       );

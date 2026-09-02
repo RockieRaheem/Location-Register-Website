@@ -149,10 +149,20 @@ export const deleteRegionalLevel = async (id: number, remarks?: string) => {
 };
 
 // User Profiles
-export const saveUserProfile = async (user: Partial<User> & { uid: string, email: string }) => {
-  const path = `users/${user.uid}`;
+export const saveUserProfile = async (user: Partial<User> & { uid?: string; id?: string | number; email: string }) => {
+  const userId = user.uid || (user.id ? String(user.id) : auth.currentUser?.uid);
+  if (!userId) {
+    console.warn("saveUserProfile: No valid user ID found, skipping write.");
+    return;
+  }
+  const path = `users/${userId}`;
   try {
-    await setDoc(doc(db, 'users', user.uid), user, { merge: true });
+    const payload = {
+      ...user,
+      uid: userId,
+      email: user.email || auth.currentUser?.email || '',
+    };
+    await setDoc(doc(db, 'users', userId), payload, { merge: true });
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
   }
