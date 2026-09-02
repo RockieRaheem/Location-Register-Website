@@ -1,0 +1,8 @@
+{
+  "name": "Location Register Website",
+  "description": "A replica of the Duqact shop purchases dashboard for managing stock and sales, demonstrating a complex UI layout with data tables and navigation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
