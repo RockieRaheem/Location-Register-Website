@@ -25,21 +25,6 @@ service cloud.firestore {
       return verified() && activeUser() && profile().role == 'admin';
     }
 
-    function countryManager(countryCode) {
-      return verified() && activeUser() && (
-        profile().role == 'admin' ||
-        (profile().role == 'country_admin' && profile().assignedCountryCodes.hasAny([countryCode]))
-      );
-    }
-
-    function countryContributor(countryCode) {
-      return verified() && activeUser() && (
-        profile().role == 'admin' ||
-        ((profile().role == 'country_admin' || profile().role == 'contributor') &&
-          profile().assignedCountryCodes.hasAny([countryCode]))
-      );
-    }
-
     function validIdentifier(value) {
       return value is string && value.size() > 0 && value.size() <= 128 && value.matches('^[A-Za-z0-9_-]+$');
     }
@@ -68,28 +53,6 @@ service cloud.firestore {
         data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
         data.alternateNames is list && data.alternateNames.size() <= 20 &&
         data.allowedTypes is list && data.allowedTypes.size() <= 30 && data.required is bool;
-    }
-
-    function validLocation(data, locationId) {
-      return data.keys().hasAll(['uid', 'referenceCode', 'countryUid', 'countryCode', 'levelOrder', 'levelKey', 'levelName', 'parentUid', 'ancestorUids', 'name', 'normalizedName', 'type', 'status', 'metadata']) &&
-        data.uid == locationId && data.countryUid is string && data.countryCode.matches('^[A-Z]{2}$') &&
-        data.referenceCode is string && data.referenceCode.matches('^[A-Z]{2}-L[0-9]{2}-[A-F0-9]{32}$') &&
-        (data.levelUid == null || data.levelUid is string) && data.levelOrder is int && data.levelOrder >= 0 && data.levelOrder <= 20 &&
-        data.levelKey is string && data.levelName is string &&
-        (data.parentUid == null || data.parentUid is string) && data.ancestorUids is list && data.ancestorUids.size() <= 20 &&
-        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
-        data.normalizedName is string && data.normalizedName.size() > 0 && data.normalizedName.size() <= 250 &&
-        data.type is string && data.type.size() > 0 && data.type.size() <= 100 &&
-        data.status in ['active', 'inactive', 'historical'] && data.metadata is map;
-    }
-
-    function validLocationLevel(data) {
-      return data.levelUid is string &&
-        exists(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)) &&
-        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.countryUid == data.countryUid &&
-        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.order == data.levelOrder &&
-        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.key == data.levelKey &&
-        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.name == data.levelName;
     }
 
     match /users/{userId} {

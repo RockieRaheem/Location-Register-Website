@@ -32,7 +32,15 @@ The console URL did not contain the Web SDK values. They were retrieved from Fir
 - Firebase project `any-location-36e76` and Web app `Any-Location` are active.
 - The `(default)` Firestore Native database is active in `africa-south1`, Standard edition, and reports `freeTier: true`.
 - The configured bucket name is `any-location-36e76.firebasestorage.app`, but Cloud Storage access is unavailable on Spark and is disabled locally with `VITE_FIREBASE_STORAGE_ENABLED=false`.
-- No Firestore records, rules, indexes, roles, or Storage objects were written by this implementation session.
+- Firestore rules were compiled and released to `cloud.firestore`; required location indexes were submitted and may take time to finish building.
+- User profiles can now be created during sign-in. Location documents have not yet been imported.
+- Cloud Storage remains disabled and no Storage objects were written.
+
+## Why SQLite still appears locally
+
+SQLite is the complete local staging, validation, and API database; it is not a claim that Firestore already contains the data. It provides repeatable imports, integrity checks, stable reference-code generation, and local development without consuming cloud quotas. Firestore becomes the production location store only after all numbered import batches are complete and validated.
+
+The Spark Firestore allowance is 20,000 document writes and 50,000 document reads per day. The registry contains 85,671 locations plus country and hierarchy documents, so a safe initial import takes at least six quota days at 15,000 locations per batch. The system must remain in hybrid migration mode until then; silently switching to an incomplete Firestore collection would hide locations from users.
 
 ## Local verification
 
@@ -82,7 +90,7 @@ Spark permits 20,000 Firestore document writes per quota day. The importer there
 
 ## Operational constraints
 
-- Client code may create or edit an individual location only within the caller's assigned country.
+- Client SDKs cannot mutate Firestore location documents directly. Authenticated API endpoints enforce role and country scope, and trusted imports synchronize reviewed changes to Firestore.
 - Moving and cascading deletion require trusted backend code because the entire descendant subtree and audit history must be updated.
 - The Electoral Commission source supplies names and relationships, not missing geometry, coordinates, leaders, populations, or commercial facts. Firebase does not manufacture those fields.
 - Do not make collections public to work around permission errors. Check the profile, verification state, assigned country codes, indexes, and deployed rules.
