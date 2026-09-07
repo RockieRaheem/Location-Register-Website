@@ -88,15 +88,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'C
         const profile = await ensureFirebaseUserProfile(authenticatedUser);
         const roleMap: Record<ApplicationRole, string> = {
           admin: 'Administrator',
-          country_admin: 'Shop Owner',
-          contributor: 'Customer',
+          country_admin: 'Country Administrator',
+          contributor: 'Contributor',
           developer: 'Developer',
           manufacturer: 'Manufacturer',
           financial_institution: 'Financial Institution',
         };
         const resolvedRole = roleMap[profile.role];
         setDashboardRole(resolvedRole);
-        setActiveView(resolvedRole === 'Customer' ? 'dashboard-customer' : 'dashboard');
+        setActiveView(['Contributor', 'Developer'].includes(resolvedRole) ? 'countries-map' : 'dashboard');
         setUser((current) => ({
           ...current,
           id: profile.uid,

@@ -61,6 +61,8 @@ const SectionTitle: React.FC<{ theme: Theme; children: React.ReactNode, isCollap
 const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNavigate, isCollapsed, allowCalls, onLogout, userRole }) => {
   const { t } = useTranslation();
   const isCustomer = userRole === 'Customer';
+  const isLocationExplorer = userRole === 'Contributor' || userRole === 'Developer';
+  const isDeveloper = userRole === 'Developer';
   const isFinancialInstitution = userRole === 'Financial Institution';
   // Treat 'Admin' from SignIn as Super Admin (same as 'Administrator')
   const isSuperAdmin = userRole === 'Administrator' || userRole === 'Admin';
@@ -126,6 +128,19 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
       </div>
       
       <nav className={`flex-1 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-2 ${isCollapsed ? '' : 'pr-2'}`}>
+        {/* LOCATION DATA MENU */}
+        {isLocationExplorer && (
+             <>
+                <SectionTitle theme={theme} isCollapsed={isCollapsed}>Location Data</SectionTitle>
+                <NavLink isCollapsed={isCollapsed} theme={theme} icon="globe" label="Location Explorer" active={activeView === 'countries-map'} onClick={() => onNavigate('countries-map')} />
+                {isDeveloper && (
+                  <NavLink isCollapsed={isCollapsed} theme={theme} icon="system-settings" label="API Access" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />
+                )}
+                <SectionTitle theme={theme} isCollapsed={isCollapsed}>Account</SectionTitle>
+                <NavLink isCollapsed={isCollapsed} theme={theme} icon="user-circle" label={t('sidebar.myProfile', 'My profile')} active={activeView === 'profile'} onClick={() => onNavigate('profile')} />
+                <NavLink isCollapsed={isCollapsed} theme={theme} icon="system-settings" label={t('sidebar.accountSettings', 'Account settings')} active={activeView === 'settings'} onClick={() => onNavigate('settings')} />
+             </>
+        )}
         
         {/* CUSTOMER MENU */}
         {isCustomer && (
@@ -142,7 +157,7 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
         )}
 
         {/* ADMIN / SHOP OWNER / FINANCIAL INSTITUTION MENU */}
-        {!isCustomer && (
+        {!isCustomer && !isLocationExplorer && (
             <>
                 {/* Collapsible Dashboard Menu */}
                 <div>

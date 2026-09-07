@@ -136,7 +136,7 @@ const titles: Record<string, string> = {
     'stock-listing': 'Stock Listing',
     'inventory': 'Inventory Tracking',
     'countries': 'Countries',
-    'countries-map': 'Regional Map',
+    'countries-map': 'Location Explorer',
     'country-admin-levels': 'Country Admin Levels',
     'country-locations-upload': 'Upload Admin Locations',
     'country-electoral-levels': 'Country Electoral Levels',
