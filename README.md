@@ -17,6 +17,7 @@ firebase/               Firestore indexes/rules, Storage rules, and rule tests
 scripts/                Database, import, Firebase, geospatial, and smoke utilities
 docs/                   Architecture, audits, security, data, and integration notes
 config/                 Repository-level metadata
+references/             Preserved third-party source snapshots; not runtime code
 ```
 
 ## Local setup
