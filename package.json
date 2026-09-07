@@ -18,7 +18,7 @@
     "firebase:import:locations": "tsx scripts/import-locations-to-firestore.ts",
     "firebase:set-role": "tsx scripts/set-firebase-user-role.ts",
     "firebase:emulators": "firebase emulators:start",
-    "firebase:deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
     "validate:ec-2022": "node scripts/validate-electoral-commission-2022.cjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:rules": "firebase emulators:exec --only firestore \"npm test -- --runInBand\"",

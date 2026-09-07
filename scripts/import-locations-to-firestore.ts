@@ -10,6 +10,9 @@ const databasePath = path.resolve(process.argv.find((value) => value.endsWith('.
 const shouldCommit = process.argv.includes('--commit');
 const countryArgument = process.argv.find((value) => value.startsWith('--country='));
 const selectedCountry = countryArgument?.split('=')[1]?.trim().toUpperCase();
+const batchArgument = process.argv.find((value) => value.startsWith('--batch='));
+const batchNumber = batchArgument ? Number.parseInt(batchArgument.split('=')[1], 10) : null;
+const sparkBatchSize = 15_000;
 const projectId = process.env.FIREBASE_PROJECT_ID || 'any-location-36e76';
 const database = new DatabaseSync(databasePath, { readOnly: true });
 
@@ -34,6 +37,16 @@ const allLocations = database.prepare(`
   ORDER BY location.depth, location.country_uid, location.uid
 `).all() as Row[];
 const locations = allLocations.filter((location) => countryUids.has(String(location.country_uid)));
+const batchCount = Math.ceil(locations.length / sparkBatchSize);
+if (batchNumber != null && (!Number.isInteger(batchNumber) || batchNumber < 1 || batchNumber > batchCount)) {
+  throw new Error(`--batch must be an integer from 1 to ${batchCount}.`);
+}
+if (shouldCommit && batchNumber == null) {
+  throw new Error(`Spark-safe imports require --batch=N. Run batches 1 through ${batchCount} on separate quota days.`);
+}
+const selectedLocations = batchNumber == null
+  ? locations
+  : locations.slice((batchNumber - 1) * sparkBatchSize, batchNumber * sparkBatchSize);
 
 const ancestorsByUid = new Map<string, string[]>();
 for (const location of locations) {
@@ -49,11 +62,17 @@ console.log(JSON.stringify({
   countryCodes: countries.map((country) => country.iso2),
   countries: countries.length,
   hierarchyLevels: levels.length,
-  locations: locations.length,
+  totalLocations: locations.length,
+  sparkDailyWriteLimit: 20_000,
+  safeBatchSize: sparkBatchSize,
+  batchCount,
+  selectedBatch: batchNumber,
+  selectedLocations: selectedLocations.length,
+  plannedWrites: selectedLocations.length + countries.length + levels.length,
 }, null, 2));
 
 if (!shouldCommit) {
-  console.log('No Firebase writes were made. Re-run with --commit after reviewing the counts and credentials.');
+  console.log('No Firebase writes were made. On Spark, commit at most one numbered batch per Firestore quota day.');
   database.close();
   process.exit(0);
 }
@@ -97,7 +116,7 @@ for (const level of levels) {
   }, { merge: true });
 }
 
-for (const location of locations) {
+for (const location of selectedLocations) {
   const uid = String(location.uid);
   bulkWriter.set(firestore.doc(`locations/${uid}`), {
     uid,
@@ -126,4 +145,4 @@ for (const location of locations) {
 
 await bulkWriter.close();
 database.close();
-console.log(`Imported ${locations.length.toLocaleString()} location documents into ${projectId}.`);
+console.log(`Imported batch ${batchNumber}/${batchCount}: ${selectedLocations.length.toLocaleString()} location documents into ${projectId}.`);
