@@ -7,12 +7,12 @@ export type { ApiPermission, ApiPrincipal, ApiRole } from './apiPolicy.ts';
 const principals = new WeakMap<Request, ApiPrincipal>();
 const projectId = process.env.FIREBASE_PROJECT_ID || 'any-location-36e76';
 const checkRevokedTokens = process.env.FIREBASE_CHECK_REVOKED_TOKENS === 'true';
-const ownerEmails = new Set(
-  (process.env.OWNER_EMAILS || '')
+function configuredOwnerEmails(): Set<string> {
+  return new Set((process.env.OWNER_EMAILS || '')
     .split(',')
     .map((email) => email.trim().toLowerCase())
-    .filter(Boolean),
-);
+    .filter(Boolean));
+}
 
 if (getApps().length === 0) initializeApp({ projectId });
 
@@ -27,7 +27,7 @@ export const authenticateApiRequest: RequestHandler = async (request, response, 
   if (!token) return response.status(401).json({ code: 'AUTHENTICATION_REQUIRED', message: 'Supply a Firebase ID token as a Bearer token.' });
   try {
     const decoded = await getAuth().verifyIdToken(token, checkRevokedTokens);
-    const isOwner = Boolean(decoded.email && ownerEmails.has(decoded.email.toLowerCase()));
+    const isOwner = Boolean(decoded.email && configuredOwnerEmails().has(decoded.email.toLowerCase()));
     const role = (isOwner ? 'admin' : String(decoded.role || '')) as ApiRole;
     if (!decoded.email_verified) return response.status(403).json({ code: 'EMAIL_NOT_VERIFIED', message: 'A verified email address is required.' });
     if (!apiRoles.has(role)) return response.status(403).json({ code: 'ROLE_NOT_ASSIGNED', message: 'No supported API role is assigned to this account.' });
@@ -44,7 +44,7 @@ export const authenticateApiRequest: RequestHandler = async (request, response, 
 
 export function isOwnerRequest(request: Request): boolean {
   const email = apiPrincipal(request).email?.toLowerCase();
-  return Boolean(email && ownerEmails.has(email));
+  return Boolean(email && configuredOwnerEmails().has(email));
 }
 
 export const authorizeOwner: RequestHandler = (request, response, next) => {

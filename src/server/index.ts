@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadEnvFile } from 'node:process';
 import { createServer as createHttpServer } from 'node:http';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, getFirestore } from 'firebase-admin/firestore';
@@ -10,6 +11,12 @@ import type { AdminLevelName, Country, LocationRecord } from '../types.ts';
 import { LocationDatabase, type NewLocationInput } from './locationDatabase.ts';
 import { apiPrincipal, authenticateApiRequest, authorize, authorizeOwner, isOwnerRequest } from './apiAuth.ts';
 import { apiRoles, type ApiRole } from './apiPolicy.ts';
+
+try {
+  loadEnvFile(path.join(process.cwd(), '.env.local'));
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+}
 
 const databasePath = process.env.LOCATION_DATABASE_PATH
   ? path.resolve(process.env.LOCATION_DATABASE_PATH)
