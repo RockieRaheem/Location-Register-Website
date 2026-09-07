@@ -1,44 +1,49 @@
 import React, { useState } from 'react';
 import Icon, { IconName } from './Icon';
 import { Partner, PricingTier } from '../types';
+import { createAccount, signInWithEmail, signInWithGoogle, userFacingAuthError } from '../src/services/firebaseAuthService';
 
 // Reusable Section Container
 const Section: React.FC<{ id?: string; className?: string; children: React.ReactNode }> = ({ id, className = "", children }) => (
     <section id={id} className={`min-h-screen flex flex-col justify-center py-20 ${className}`}>{children}</section>
 );
 
-export const Hero: React.FC<{ onLogin: (role?: string) => void }> = ({ onLogin }) => {
+export const Hero: React.FC<{ onLogin: () => void }> = ({ onLogin }) => {
     const [activeTab, setActiveTab] = useState<'signin' | 'signup'>('signin');
-    const [selectedRole, setSelectedRole] = useState<'Super admin' | 'Country Admin' | 'Contributor'>('Super admin');
-    const [email, setEmail] = useState('admin@locationregister.org');
-    const [password, setPassword] = useState('admin123');
-
-    // New multi-step signup state variables
-    const [signupStep, setSignupStep] = useState<'fields' | 'otp'>('fields');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const [signupEmail, setSignupEmail] = useState('');
-    const [signupPhone, setSignupPhone] = useState('');
     const [signupFullName, setSignupFullName] = useState('');
     const [signupPassword, setSignupPassword] = useState('');
-    const [enteredOtp, setEnteredOtp] = useState('');
-    const [mockOtp, setMockOtp] = useState('');
-    const [otpMessage, setOtpMessage] = useState('');
-    const [otpError, setOtpError] = useState('');
+    const [authError, setAuthError] = useState('');
+    const [authNotice, setAuthNotice] = useState('');
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-    const dummyAccounts = {
-        'Super admin': { email: 'admin@locationregister.org', pass: 'admin123', desc: 'Registry System Admin' },
-        'Country Admin': { email: 'owner@shop.com', pass: 'owner123', desc: 'Local Merchant Registry' },
-        'Contributor': { email: 'customer@mail.com', pass: 'cust123', desc: 'Verified Buyer Profile' },
+    const runAuth = async (operation: () => Promise<unknown>) => {
+        setIsAuthenticating(true);
+        setAuthError('');
+        setAuthNotice('');
+        try {
+            await operation();
+            onLogin();
+        } catch (error) {
+            setAuthError(userFacingAuthError(error));
+        } finally {
+            setIsAuthenticating(false);
+        }
     };
 
-    const handleRoleSelect = (role: 'Super admin' | 'Country Admin' | 'Contributor') => {
-        setSelectedRole(role);
-        setEmail(dummyAccounts[role].email);
-        setPassword(dummyAccounts[role].pass);
+    const handleSubmitSignIn = (event: React.FormEvent) => {
+        event.preventDefault();
+        void runAuth(() => signInWithEmail(email.trim(), password));
     };
 
-    const handleSubmitSignIn = (e: React.FormEvent) => {
-        e.preventDefault();
-        onLogin(selectedRole);
+    const handleSubmitSignUp = (event: React.FormEvent) => {
+        event.preventDefault();
+        void runAuth(async () => {
+            await createAccount({ email: signupEmail.trim(), password: signupPassword, name: signupFullName.trim() });
+            setAuthNotice('Account created. Firebase sent an email verification link.');
+        });
     };
 
     return (
@@ -119,26 +124,9 @@ export const Hero: React.FC<{ onLogin: (role?: string) => void }> = ({ onLogin }
 
                             {activeTab === 'signin' ? (
                                 <div className="space-y-4">
-                                    <div className="mb-4">
-                                        <p className="text-xs font-bold tracking-wider text-slate-400 mb-2">Toggle testing profiles</p>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            {(Object.keys(dummyAccounts) as Array<keyof typeof dummyAccounts>).map((role) => (
-                                                <button
-                                                    key={role}
-                                                    type="button"
-                                                    onClick={() => handleRoleSelect(role)}
-                                                    className={`px-3 py-2 text-xs font-bold rounded-lg border text-left transition-all ${selectedRole === role ? 'bg-yellow-500/10 border-yellow-500 text-yellow-700' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
-                                                >
-                                                    <span className="block">{role}</span>
-                                                    <span className="block font-normal text-[10px] text-slate-400 leading-none mt-0.5">{dummyAccounts[role].desc}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
                                     <form onSubmit={handleSubmitSignIn} className="space-y-4">
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-500 mb-1">Email representation</label>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Email address</label>
                                             <input 
                                                 type="email" 
                                                 required
@@ -149,7 +137,7 @@ export const Hero: React.FC<{ onLogin: (role?: string) => void }> = ({ onLogin }
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs font-bold text-slate-500 mb-1">Passkey</label>
+                                            <label className="block text-xs font-bold text-slate-500 mb-1">Password</label>
                                             <input 
                                                 type="password" 
                                                 required
@@ -161,26 +149,25 @@ export const Hero: React.FC<{ onLogin: (role?: string) => void }> = ({ onLogin }
                                         </div>
                                         <button 
                                             type="submit" 
+                                            disabled={isAuthenticating}
                                             className="w-full bg-slate-900 text-white font-bold py-3.5 rounded-xl hover:bg-slate-800 transition-all hover:shadow-lg shadow-md flex items-center justify-center gap-2"
                                         >
-                                            Enter Location Register
+                                            {isAuthenticating ? 'Signing in…' : 'Enter Location Register'}
                                             <Icon name="chevron-right" className="w-5 h-5" />
+                                        </button>
+                                        <button type="button" disabled={isAuthenticating} onClick={() => void runAuth(signInWithGoogle)} className="w-full border border-slate-200 bg-white text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-50 transition-all flex items-center justify-center gap-2">
+                                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="" className="w-5 h-5" />
+                                            Continue with Google
                                         </button>
                                     </form>
                                 </div>
                             ) : (
                                 <div className="space-y-4">
-                                    {signupStep === 'fields' ? (
-                                        <form onSubmit={(e) => {
-                                            e.preventDefault();
-                                            const code = Math.floor(1000 + Math.random() * 9000).toString();
-                                            setMockOtp(code);
-                                            setOtpMessage(`A validation OTP was dispatched to ${signupEmail}.`);
-                                            setOtpError('');
-                                            setSignupStep('otp');
-                                        }} className="space-y-4">
-                                            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-xs text-yellow-800 leading-relaxed font-semibold">
-                                                🔒 Enter your phone and email to receive a secure OTP to verify and process your registration.
+                                    <form onSubmit={handleSubmitSignUp} className="space-y-4">
+                                            <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-xs text-yellow-800 leading-relaxed font-semibold">New accounts receive the Contributor role. Elevated access is granted by an authorized administrator.</div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-500 mb-1">Your name</label>
+                                                <input type="text" required value={signupFullName} onChange={(e) => setSignupFullName(e.target.value)} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 transition-all text-sm bg-white text-slate-900" placeholder="John Doe" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-slate-500 mb-1">Email address</label>
@@ -194,108 +181,22 @@ export const Hero: React.FC<{ onLogin: (role?: string) => void }> = ({ onLogin }
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-xs font-bold text-slate-500 mb-1">Phone number</label>
-                                                <input 
-                                                    type="tel" 
-                                                    required
-                                                    value={signupPhone}
-                                                    onChange={(e) => setSignupPhone(e.target.value)}
-                                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 transition-all text-sm bg-white text-slate-900" 
-                                                    placeholder="+256 700 000000" 
-                                                />
+                                                <label className="block text-xs font-bold text-slate-500 mb-1">Password</label>
+                                                <input type="password" autoComplete="new-password" minLength={6} required value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} className="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 transition-all text-sm bg-white text-slate-900" />
                                             </div>
                                             <button 
                                                 type="submit" 
+                                                disabled={isAuthenticating}
                                                 className="w-full bg-yellow-500 text-slate-950 font-bold py-3 rounded-xl hover:bg-yellow-400 transition-all hover:shadow-lg shadow-md flex items-center justify-center gap-2 text-sm"
                                             >
-                                                <span>Send Verification OTP</span>
+                                                <span>{isAuthenticating ? 'Creating account…' : 'Create Firebase account'}</span>
                                                 <Icon name="chevron-right" className="w-5 h-5 animate-pulse" />
                                             </button>
-                                        </form>
-                                    ) : (
-                                        <form onSubmit={(e) => {
-                                            e.preventDefault();
-                                            if (enteredOtp !== mockOtp) {
-                                                setOtpError(`Invalid validation key. Key matches: ${mockOtp}`);
-                                                return;
-                                            }
-                                            // Redirect to access platform as default profile
-                                            onLogin('Contributor');
-                                        }} className="space-y-4">
-                                            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 space-y-1">
-                                                <p className="font-semibold">✨ {otpMessage}</p>
-                                                <p className="opacity-95">Demo authentication key is: <strong className="font-mono text-sm sm:text-base tracking-widest text-emerald-900 select-all bg-emerald-100 px-2 py-0.5 rounded">{mockOtp}</strong></p>
-                                            </div>
-
-                                            {otpError && (
-                                                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 font-semibold">
-                                                    ⚠️ {otpError}
-                                                </div>
-                                            )}
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 mb-1">Enter OTP code</label>
-                                                <input 
-                                                    type="text" 
-                                                    required
-                                                    maxLength={4}
-                                                    value={enteredOtp}
-                                                    onChange={(e) => {
-                                                        setEnteredOtp(e.target.value.replace(/\D/g, ''));
-                                                        setOtpError('');
-                                                    }}
-                                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 transition-all text-sm font-mono tracking-widest text-center text-slate-900 bg-slate-50 focus:bg-white" 
-                                                    placeholder="xxxx" 
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 mb-1">Your name</label>
-                                                <input 
-                                                    type="text" 
-                                                    required
-                                                    value={signupFullName}
-                                                    onChange={(e) => setSignupFullName(e.target.value)}
-                                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 transition-all text-sm bg-white text-slate-900" 
-                                                    placeholder="John Doe" 
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-500 mb-1">Set password</label>
-                                                <input 
-                                                    type="password" 
-                                                    required
-                                                    value={signupPassword}
-                                                    onChange={(e) => setSignupPassword(e.target.value)}
-                                                    className="w-full px-4 py-2.5 border border-slate-300 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 transition-all text-sm bg-white text-slate-900" 
-                                                    placeholder="Change or create password" 
-                                                />
-                                            </div>
-
-                                            <div className="flex gap-2.5 pt-1">
-                                                <button 
-                                                    type="button" 
-                                                    onClick={() => {
-                                                        setSignupStep('fields');
-                                                        setEnteredOtp('');
-                                                        setOtpError('');
-                                                    }}
-                                                    className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-all text-sm text-center border border-slate-200"
-                                                >
-                                                    Back
-                                                </button>
-                                                <button 
-                                                    type="submit" 
-                                                    className="flex-[2] bg-yellow-500 text-slate-950 font-bold py-3 rounded-xl hover:bg-yellow-400 transition-all hover:shadow-lg shadow-md text-sm"
-                                                >
-                                                    Access Register
-                                                </button>
-                                            </div>
-                                        </form>
-                                    )}
+                                    </form>
                                 </div>
                             )}
+                            {authError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-xs font-semibold text-red-700">{authError}</p>}
+                            {authNotice && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-xs font-semibold text-emerald-700">{authNotice}</p>}
                         </div>
                     </div>
                 </div>

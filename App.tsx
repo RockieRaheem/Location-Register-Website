@@ -30,9 +30,6 @@ const AppContent: React.FC = () => {
   const [isSigninOpen, setIsSigninOpen] = useState(false);
   const [selectedBlogPost, setSelectedBlogPost] = useState<BlogPost | null>(null);
   
-  // Track the user role for the session to switch dashboards
-  const [currentUserRole, setCurrentUserRole] = useState<string>('Administrator');
-  
   // Default partners data
   const defaultPartners: Partner[] = [
     { 
@@ -113,16 +110,7 @@ const AppContent: React.FC = () => {
   }
   const closeSignin = () => setIsSigninOpen(false);
 
-  const handleLogin = (role?: string) => {
-      let mappedRole = role || 'Administrator';
-      if (role === 'Super admin' || role === 'Admin') {
-          mappedRole = 'Administrator';
-      } else if (role === 'Country Admin') {
-          mappedRole = 'Shop Owner';
-      } else if (role === 'Contributor') {
-          mappedRole = 'Customer';
-      }
-      setCurrentUserRole(mappedRole);
+  const handleLogin = () => {
       setIsSigninOpen(false);
       setView('admin');
   }
@@ -147,7 +135,6 @@ const AppContent: React.FC = () => {
         pricingTiers={pricingTiers}
         onUpdatePricing={(newTiers) => setPricingTiers(newTiers)}
         onLogout={() => setView('home')}
-        userRole={currentUserRole}
       />
     );
   }

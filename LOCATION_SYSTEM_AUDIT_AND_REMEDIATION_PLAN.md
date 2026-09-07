@@ -1,5 +1,15 @@
 # Location Register System Audit and Remediation Plan
 
+## Implementation update: Firebase authentication and cloud persistence
+
+The Firebase audit found that the application was configured for a different Google project (`gen-lang-client-0238291016`), while the requested project is `any-location-36e76`. The old checked-in applet configuration was removed. Firebase initialization now uses Vite environment variables, defaults only the non-secret project identifiers, selects the standard `(default)` Firestore database, and fails with a precise configuration error when the three required Web SDK values are absent.
+
+The UI also contained five hard-coded test accounts, accepted any non-empty password, displayed a generated mock OTP in the page, allowed unauthenticated guest access to the dashboard, and elevated two hard-coded email addresses to administrator. Those paths have been replaced with Firebase Email/Password and Google authentication. New profiles are created as active Contributors only; administrator and country-administrator roles require trusted Admin SDK tooling. Password reset and Firebase email verification are implemented.
+
+Firestore now has a country-neutral location representation: `countries/{ISO2}`, a per-country `hierarchyLevels` subcollection, and globally unique `locations/{UUID}` documents. A location stores its parent UUID and ordered ancestor UUIDs, permitting direct-child, level, prefix, and descendant queries without fixing the schema to Uganda. Uganda retains its six supplied administrative tiers, while every other country can define a different ordered schema. Firestore rules prevent cross-country parenting, skipped levels, falsified ancestry, self-service role elevation, and client-side subtree deletion/movement. Cloud Storage rules isolate user files and validate size and MIME type.
+
+The trusted migration script reads the already validated SQLite registry and preserves all UUIDs, source provenance, hierarchy definitions, parent relationships, and ancestor paths. It is dry-run by default; no cloud data is written unless `--commit` is supplied. The exact registered `Any-Location` Web SDK configuration was retrieved through the authenticated Firebase CLI and stored in ignored `.env.local`. A read-only cloud check on 2026-09-07 returned HTTP 403 because the Firestore API/database has not yet been enabled. Live rules deployment and migration therefore remain pending until the owner selects the permanent Firestore region, provisions the database, and supplies Google Application Default Credentials for the import. Full procedures are in [`FIREBASE_INTEGRATION.md`](./FIREBASE_INTEGRATION.md).
+
 ## Document status
 
 - Audit date: 2026-09-02

@@ -1,123 +1,90 @@
-
-import {
-  assertFails,
-  assertSucceeds,
-  initializeTestEnvironment,
-  RulesTestEnvironment,
-} from '@firebase/rules-unit-testing';
-import { readFileSync } from 'fs';
-import { doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
+import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
+import { readFileSync } from 'node:fs';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 
 let testEnv: RulesTestEnvironment;
 
+const authToken = (email: string) => ({ email, email_verified: true });
+const profile = (uid: string, email: string, role = 'contributor', assignedCountryCodes: string[] = []) => ({
+  uid, email, name: uid, avatar: null, role, status: 'active', assignedCountryCodes,
+});
+
 beforeAll(async () => {
   testEnv = await initializeTestEnvironment({
-    projectId: 'test-project',
-    firestore: {
-      rules: readFileSync('DRAFT_firestore.rules', 'utf8'),
-      host: 'localhost',
-      port: 8080,
-    },
+    projectId: 'location-register-rules-test',
+    firestore: { rules: readFileSync('firestore.rules', 'utf8'), host: '127.0.0.1', port: 8080 },
   });
 });
 
-afterAll(async () => {
-  await testEnv.cleanup();
-});
+afterAll(async () => testEnv.cleanup());
+beforeEach(async () => testEnv.clearFirestore());
 
-beforeEach(async () => {
-  await testEnv.clearFirestore();
-});
-
-describe('Firestore Security Rules', () => {
-  const aliceId = 'alice';
-  const bobId = 'bob';
-  const adminId = 'admin_user';
-  const adminEmail = 'jabuyapm@gmail.com';
-
-  const aliceAuth = { uid: aliceId, token: { email: 'alice@example.com', email_verified: true } };
-  const bobAuth = { uid: bobId, token: { email: 'bob@example.com', email_verified: true } };
-  const adminAuth = { uid: adminId, token: { email: adminEmail, email_verified: true } };
-
-  describe('User Profiles', () => {
-    it('allows Alice to create her own profile', async () => {
-      const aliceDb = testEnv.authenticatedContext(aliceId, aliceAuth.token).firestore();
-      await assertSucceeds(setDoc(doc(aliceDb, 'users', aliceId), {
-        uid: aliceId,
-        email: 'alice@example.com'
-      }));
+async function seedRegistry() {
+  await testEnv.withSecurityRulesDisabled(async (context) => {
+    const firestore = context.firestore();
+    await setDoc(doc(firestore, 'users', 'ug-manager'), profile('ug-manager', 'manager@example.com', 'country_admin', ['UG']));
+    await setDoc(doc(firestore, 'users', 'alice'), profile('alice', 'alice@example.com'));
+    await setDoc(doc(firestore, 'countries', 'UG'), {
+      uid: 'country-ug', code: 'UG', name: 'Uganda', rootLocationUid: 'root-ug', schemaVersion: 1,
     });
-
-    it('denies Alice from creating Bob profile', async () => {
-      const aliceDb = testEnv.authenticatedContext(aliceId, aliceAuth.token).firestore();
-      await assertFails(setDoc(doc(aliceDb, 'users', bobId), {
-        uid: bobId,
-        email: 'bob@example.com'
-      }));
+    await setDoc(doc(firestore, 'countries', 'UG', 'hierarchyLevels', 'ug-level-1'), {
+      uid: 'ug-level-1', countryUid: 'country-ug', order: 1, key: 'region', name: 'Region',
+      alternateNames: [], allowedTypes: ['Region'], required: true,
     });
-
-    it('denies Alice from becoming admin via update', async () => {
-      const adminDb = testEnv.authenticatedContext(adminId, adminAuth.token).firestore();
-      await setDoc(doc(adminDb, 'users', aliceId), {
-        uid: aliceId,
-        email: 'alice@example.com',
-        role: 'user'
-      });
-
-      const aliceDb = testEnv.authenticatedContext(aliceId, aliceAuth.token).firestore();
-      await assertFails(updateDoc(doc(aliceDb, 'users', aliceId), {
-        role: 'admin'
-      }));
+    await setDoc(doc(firestore, 'locations', 'root-ug'), {
+      uid: 'root-ug', countryUid: 'country-ug', countryCode: 'UG', levelUid: null, levelOrder: 0,
+      levelKey: 'country', levelName: 'Country', parentUid: null, ancestorUids: [], name: 'Uganda',
+      normalizedName: 'uganda', type: 'Country', status: 'active', metadata: {},
     });
   });
+}
 
-  describe('Shops', () => {
-    it('denies regular user from creating shop', async () => {
-      const aliceDb = testEnv.authenticatedContext(aliceId, aliceAuth.token).firestore();
-      await assertFails(setDoc(doc(aliceDb, 'shops', '1'), {
-        id: 1,
-        name: 'Alice Shop',
-        ownerId: 123
-      }));
-    });
-
-    it('allows admin to create shop', async () => {
-      const adminDb = testEnv.authenticatedContext(adminId, adminAuth.token).firestore();
-      // Need to seed admin user doc for isAdmin() helper
-      await setDoc(doc(adminDb, 'users', adminId), { uid: adminId, email: adminEmail, role: 'admin' });
-      
-      await assertSucceeds(setDoc(doc(adminDb, 'shops', '1'), {
-        id: 1,
-        name: 'Store 1',
-        ownerId: 1
-      }));
-    });
+describe('user profile rules', () => {
+  it('allows a user to create only their least-privileged profile', async () => {
+    const firestore = testEnv.authenticatedContext('alice', authToken('alice@example.com')).firestore();
+    await assertSucceeds(setDoc(doc(firestore, 'users', 'alice'), profile('alice', 'alice@example.com')));
+    await assertFails(setDoc(doc(firestore, 'users', 'mallory'), profile('mallory', 'mallory@example.com')));
   });
 
-  describe('Products', () => {
-    it('allows admin to create product', async () => {
-      const adminDb = testEnv.authenticatedContext(adminId, adminAuth.token).firestore();
-      await setDoc(doc(adminDb, 'users', adminId), { uid: adminId, email: adminEmail, role: 'admin' });
+  it('prevents self-service role escalation', async () => {
+    await seedRegistry();
+    const firestore = testEnv.authenticatedContext('alice', authToken('alice@example.com')).firestore();
+    await assertFails(updateDoc(doc(firestore, 'users', 'alice'), { role: 'admin' }));
+  });
+});
 
-      await assertSucceeds(setDoc(doc(adminDb, 'products', 'p1'), {
-        id: 1,
-        sn: 'SN1',
-        name: 'Product 1',
-        status: 'ACTIVE'
-      }));
-    });
+describe('location hierarchy rules', () => {
+  beforeEach(seedRegistry);
 
-    it('denies admin from injecting ghost fields in product', async () => {
-       const adminDb = testEnv.authenticatedContext(adminId, adminAuth.token).firestore();
-      await setDoc(doc(adminDb, 'users', adminId), { uid: adminId, email: adminEmail, role: 'admin' });
+  const region = {
+    uid: 'region-central', countryUid: 'country-ug', countryCode: 'UG', levelUid: 'ug-level-1', levelOrder: 1,
+    levelKey: 'region', levelName: 'Region', parentUid: 'root-ug', ancestorUids: ['root-ug'],
+    name: 'Central', normalizedName: 'central', type: 'Region', status: 'active', metadata: {},
+  };
 
-      await assertFails(setDoc(doc(adminDb, 'products', 'p1'), {
-        id: 1,
-        sn: 'SN1',
-        name: 'Product 1',
-        status: 'ACTIVE',
-        isLegacy: true // Ghost field not in isValidProduct
-      }));
-    });
+  it('allows authenticated active users to read and denies anonymous users', async () => {
+    const aliceDb = testEnv.authenticatedContext('alice', authToken('alice@example.com')).firestore();
+    await assertSucceeds(getDoc(doc(aliceDb, 'locations', 'root-ug')));
+    await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'locations', 'root-ug')));
+  });
+
+  it('allows an assigned country manager to create a structurally valid child', async () => {
+    const firestore = testEnv.authenticatedContext('ug-manager', authToken('manager@example.com')).firestore();
+    await assertSucceeds(setDoc(doc(firestore, 'locations', region.uid), region));
+  });
+
+  it('denies contributors, cross-country writes, and invalid ancestry', async () => {
+    const aliceDb = testEnv.authenticatedContext('alice', authToken('alice@example.com')).firestore();
+    await assertFails(setDoc(doc(aliceDb, 'locations', region.uid), region));
+
+    const managerDb = testEnv.authenticatedContext('ug-manager', authToken('manager@example.com')).firestore();
+    await assertFails(setDoc(doc(managerDb, 'locations', 'invalid-ancestor'), { ...region, uid: 'invalid-ancestor', ancestorUids: [] }));
+    await assertFails(setDoc(doc(managerDb, 'locations', 'kenya-region'), { ...region, uid: 'kenya-region', countryCode: 'KE' }));
+  });
+
+  it('denies client-side subtree deletion', async () => {
+    const managerDb = testEnv.authenticatedContext('ug-manager', authToken('manager@example.com')).firestore();
+    await assertSucceeds(setDoc(doc(managerDb, 'locations', region.uid), region));
+    await assertFails(import('firebase/firestore').then(({ deleteDoc }) => deleteDoc(doc(managerDb, 'locations', region.uid))));
   });
 });

@@ -5,7 +5,7 @@ import MainContent from './MainContent';
 import { Theme, ActiveView, User, IDVerificationRequest, Role, ShopUser, Shop, Country, Notification, CameraDevice, CallRecord, DeletedCallRecord, Partner, PricingTier, ProductDefinition, StockItem, RegionalEconomicLevel } from '../types';
 import { mockVerificationRequests, mockShopRoles, mockSuperUserRoles, mockShopUsers as initialMockShopUsers, allAfricanCountries, mockShops as initialMockShops, mockNotifications as initialMockNotifications, mockCameraDevices, mockCallRecords, mockProductDefinitions, mockStockListings, mockRegionalEconomicLevels } from '../data';
 import { auth } from '../firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { 
   subscribeToProducts, 
   saveProduct, 
@@ -13,9 +13,15 @@ import {
   saveStockItem, 
   subscribeToRegionalLevels, 
   saveRegionalLevel as firebaseSaveRegionalLevel,
-  deleteRegionalLevel as firebaseDeleteRegionalLevel,
-  saveUserProfile
+  deleteRegionalLevel as firebaseDeleteRegionalLevel
 } from '../firebaseService';
+import {
+  ensureFirebaseUserProfile,
+  signInWithGoogle,
+  signOutFirebase,
+  userFacingAuthError,
+  type ApplicationRole,
+} from '../src/services/firebaseAuthService';
 import { countryService } from '../src/services/countryService';
 import FirebaseErrorBoundary from './FirebaseErrorBoundary';
 import Icon from './Icon';
@@ -31,13 +37,14 @@ interface AdminDashboardProps {
   userRole?: string;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'Administrator' }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'Customer' }) => {
   const [theme, setTheme] = useState<Theme>('dark');
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
-  const [isGuest, setIsGuest] = useState(false);
+  const [hasAuthorizedProfile, setHasAuthorizedProfile] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [dashboardRole, setDashboardRole] = useState(userRole);
 
   // Set initial view based on role
   const [activeView, setActiveView] = useState<ActiveView>(userRole === 'Customer' ? 'dashboard-customer' : 'dashboard');
@@ -68,22 +75,43 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
 
   // Firebase Auth Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
-      setIsAuthReady(true);
-      if (user) {
-        const isOwner = user.email === 'jabuyapm@gmail.com' || user.email === 'kamwangaraheem2050@gmail.com';
-        const userProfile: User = {
-          id: user.uid,
-          name: user.displayName || 'User',
-          email: user.email || '',
-          role: isOwner ? 'admin' : 'user',
-          bio: isOwner ? 'System Administrator' : '',
-          avatar: user.photoURL || null
+    const unsubscribe = onAuthStateChanged(auth, async (authenticatedUser) => {
+      setFirebaseUser(authenticatedUser);
+      if (!authenticatedUser) {
+        setHasAuthorizedProfile(false);
+        setIsAuthReady(true);
+        return;
+      }
+
+      try {
+        setHasAuthorizedProfile(false);
+        const profile = await ensureFirebaseUserProfile(authenticatedUser);
+        const roleMap: Record<ApplicationRole, string> = {
+          admin: 'Administrator',
+          country_admin: 'Shop Owner',
+          contributor: 'Customer',
+          manufacturer: 'Manufacturer',
+          financial_institution: 'Financial Institution',
         };
-        saveUserProfile({ ...userProfile, uid: user.uid });
-        
-        setUser(userProfile);
+        const resolvedRole = roleMap[profile.role];
+        setDashboardRole(resolvedRole);
+        setActiveView(resolvedRole === 'Customer' ? 'dashboard-customer' : 'dashboard');
+        setUser((current) => ({
+          ...current,
+          id: profile.uid,
+          name: profile.name,
+          email: profile.email,
+          role: resolvedRole,
+          avatar: profile.avatar,
+          bio: profile.role === 'admin' ? 'System Administrator' : current.bio,
+        }));
+        setHasAuthorizedProfile(true);
+      } catch (error) {
+        console.error('Unable to load the Firebase user profile', error);
+        setLoginError('Your account was authenticated, but its application profile could not be loaded.');
+        await signOutFirebase();
+      } finally {
+        setIsAuthReady(true);
       }
     });
     return () => unsubscribe();
@@ -91,7 +119,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
 
   // Firebase Data Listeners
   useEffect(() => {
-    if (!isAuthReady || (!firebaseUser && !isGuest)) return;
+    if (!isAuthReady || !firebaseUser || !hasAuthorizedProfile) return;
 
     const unsubProducts = subscribeToProducts((data) => {
       if (data && data.length > 0) {
@@ -124,7 +152,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
       unsubStock();
       unsubRegional();
     };
-  }, [isAuthReady, firebaseUser, isGuest]);
+  }, [isAuthReady, firebaseUser, hasAuthorizedProfile]);
 
   // Country Management via API
   useEffect(() => {
@@ -372,14 +400,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
     
     setIsLoggingIn(true);
     setLoginError(null);
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithGoogle();
     } catch (error: any) {
       // Don't show error if user just closed the popup or if another one is pending
       if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
         console.error("Login failed", error);
-        setLoginError(error.message || "Login failed. Please try again.");
+        setLoginError(userFacingAuthError(error));
       }
     } finally {
       setIsLoggingIn(false);
@@ -388,10 +415,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
 
   const handleLogout = async () => {
     try {
-      if (firebaseUser) {
-        await signOut(auth);
-      }
-      setIsGuest(false);
+      await signOutFirebase();
       onLogout();
     } catch (error) {
       console.error("Logout failed", error);
@@ -406,7 +430,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
     );
   }
 
-  if (!firebaseUser && !isGuest) {
+  if (!firebaseUser || !hasAuthorizedProfile) {
     return (
       <div className={`h-screen flex flex-col items-center justify-center p-4 ${theme === 'dark' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-900'}`}>
         <div className="max-w-md w-full text-center space-y-8">
@@ -434,19 +458,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
               <span>{isLoggingIn ? 'Connecting...' : 'Sign in with Google'}</span>
             </button>
 
-            <div className="relative flex items-center py-2">
-              <div className="flex-grow border-t border-slate-700"></div>
-              <span className="flex-shrink mx-4 text-slate-500 text-sm">or</span>
-              <div className="flex-grow border-t border-slate-700"></div>
-            </div>
-
-            <button
-              onClick={() => setIsGuest(true)}
-              className={`w-full py-4 ${theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700' : 'bg-slate-200 hover:bg-slate-300'} text-current font-bold rounded-xl shadow-md transition-all flex items-center justify-center space-x-3`}
-            >
-              <Icon name="user" className="w-5 h-5" />
-              <span>Continue as Guest</span>
-            </button>
           </div>
           
           {loginError && (
@@ -480,7 +491,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'A
             isCollapsed={isSidebarCollapsed}
             allowCalls={allowCalls}
             onLogout={handleLogout}
-            userRole={userRole}
+            userRole={dashboardRole}
           />
           
           <main className={`flex-1 flex flex-col h-full ${theme === 'dark' ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-800'} overflow-hidden relative transition-all duration-300 w-full`}>

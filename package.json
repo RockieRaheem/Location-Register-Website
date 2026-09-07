@@ -6,16 +6,25 @@
   "engines": {
     "node": ">=22.13.0"
   },
+  "overrides": {
+    "qs": "^6.16.0"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "start": "node server.ts",
     "build": "vite build",
     "db:seed": "tsx scripts/seed-location-database.ts",
     "db:validate": "tsx scripts/validate-location-database.ts",
+    "firebase:import:locations": "tsx scripts/import-locations-to-firestore.ts",
+    "firebase:set-role": "tsx scripts/set-firebase-user-role.ts",
+    "firebase:emulators": "firebase emulators:start",
+    "firebase:deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage",
     "validate:ec-2022": "node scripts/validate-electoral-commission-2022.cjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:rules": "firebase emulators:exec --only firestore \"npm test -- --runInBand\"",
     "preview": "vite preview",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "lint:rules": "eslint firestore.rules storage.rules"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -27,6 +36,7 @@
     "motion": "^12.35.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-is": "^19.2.8",
     "recharts": "^3.8.0"
   },
   "devDependencies": {
@@ -40,6 +50,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.0.0",
     "eslint": "^10.3.0",
+    "firebase-tools": "^15.29.0",
+    "firebase-admin": "^14.3.0",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.9",
     "tsx": "^4.21.0",

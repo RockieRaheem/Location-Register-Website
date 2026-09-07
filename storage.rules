@@ -1,0 +1,47 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function admin() {
+      return signedIn() && request.auth.token.email_verified == true && request.auth.token.role == 'admin';
+    }
+
+    function validImage(maxBytes) {
+      return request.resource.size <= maxBytes && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+    }
+
+    function validUserDocument() {
+      return request.resource.size <= 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('(image/(jpeg|png|webp)|application/pdf)');
+    }
+
+    match /profile-images/{userId}/{fileName} {
+      allow read: if owner(userId) || admin();
+      allow create, update: if owner(userId) && validImage(5 * 1024 * 1024);
+      allow delete: if owner(userId) || admin();
+    }
+
+    match /user-content/{userId}/{fileName} {
+      allow read: if owner(userId) || admin();
+      allow create, update: if owner(userId) && validUserDocument();
+      allow delete: if owner(userId) || admin();
+    }
+
+    // Large authoritative imports are uploaded only by server-side tooling.
+    // Firebase Admin SDK uses IAM and does not depend on these client rules.
+    match /location-imports/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

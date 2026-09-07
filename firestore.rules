@@ -1,182 +1,151 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
 
-    // 0. Default Deny Catch-all
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function hasProfile() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function activeUser() {
+      return hasProfile() && profile().status == 'active';
+    }
+
+    function admin() {
+      return verified() && activeUser() && profile().role == 'admin';
+    }
+
+    function countryManager(countryCode) {
+      return verified() && activeUser() && (
+        profile().role == 'admin' ||
+        (profile().role == 'country_admin' && profile().assignedCountryCodes.hasAny([countryCode]))
+      );
+    }
+
+    function validIdentifier(value) {
+      return value is string && value.size() > 0 && value.size() <= 128 && value.matches('^[A-Za-z0-9_-]+$');
+    }
+
+    function validUser(data, userId) {
+      return data.keys().hasAll(['uid', 'email', 'name', 'role', 'status', 'assignedCountryCodes']) &&
+        data.keys().hasOnly(['uid', 'email', 'name', 'avatar', 'role', 'status', 'assignedCountryCodes', 'bio', 'gender', 'dateOfBirth', 'idType', 'idNumber', 'idDocument', 'selfie', 'createdAt', 'updatedAt']) &&
+        data.uid == userId && data.email is string && data.email.size() <= 254 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+        (data.avatar == null || (data.avatar is string && data.avatar.size() <= 2000)) &&
+        data.role in ['admin', 'country_admin', 'contributor', 'manufacturer', 'financial_institution'] &&
+        data.status in ['active', 'disabled'] && data.assignedCountryCodes is list && data.assignedCountryCodes.size() <= 60;
+    }
+
+    function validCountry(data, countryCode) {
+      return data.keys().hasAll(['uid', 'code', 'name', 'rootLocationUid', 'schemaVersion']) &&
+        data.uid is string && data.code == countryCode && countryCode.matches('^[A-Z]{2}$') &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 120 &&
+        data.rootLocationUid is string && data.schemaVersion is int && data.schemaVersion > 0;
+    }
+
+    function validLevel(data) {
+      return data.keys().hasAll(['uid', 'countryUid', 'order', 'key', 'name', 'alternateNames', 'allowedTypes', 'required']) &&
+        data.uid is string && data.countryUid is string && data.order is int && data.order > 0 && data.order <= 20 &&
+        data.key is string && data.key.matches('^[a-z][a-z0-9_]{0,49}$') &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+        data.alternateNames is list && data.alternateNames.size() <= 20 &&
+        data.allowedTypes is list && data.allowedTypes.size() <= 30 && data.required is bool;
+    }
+
+    function validLocation(data, locationId) {
+      return data.keys().hasAll(['uid', 'countryUid', 'countryCode', 'levelOrder', 'levelKey', 'levelName', 'parentUid', 'ancestorUids', 'name', 'normalizedName', 'type', 'status', 'metadata']) &&
+        data.uid == locationId && data.countryUid is string && data.countryCode.matches('^[A-Z]{2}$') &&
+        (data.levelUid == null || data.levelUid is string) && data.levelOrder is int && data.levelOrder >= 0 && data.levelOrder <= 20 &&
+        data.levelKey is string && data.levelName is string &&
+        (data.parentUid == null || data.parentUid is string) && data.ancestorUids is list && data.ancestorUids.size() <= 20 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+        data.normalizedName is string && data.normalizedName.size() > 0 && data.normalizedName.size() <= 250 &&
+        data.type is string && data.type.size() > 0 && data.type.size() <= 100 &&
+        data.status in ['active', 'inactive', 'historical'] && data.metadata is map;
+    }
+
+    function validLocationLevel(data) {
+      return data.levelUid is string &&
+        exists(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)) &&
+        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.countryUid == data.countryUid &&
+        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.order == data.levelOrder &&
+        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.key == data.levelKey &&
+        get(/databases/$(database)/documents/countries/$(data.countryCode)/hierarchyLevels/$(data.levelUid)).data.name == data.levelName;
+    }
+
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || admin());
+      allow list, delete: if admin();
+      allow create: if signedIn() && request.auth.uid == userId && validUser(request.resource.data, userId) &&
+        request.resource.data.email == request.auth.token.email && request.resource.data.role == 'contributor' &&
+        request.resource.data.status == 'active' && request.resource.data.assignedCountryCodes.size() == 0;
+      allow update: if validUser(request.resource.data, userId) && (
+        (admin() && request.resource.data.uid == resource.data.uid && request.resource.data.email == resource.data.email) ||
+        (signedIn() && request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'avatar', 'bio', 'gender', 'dateOfBirth', 'idType', 'idNumber', 'idDocument', 'selfie', 'updatedAt']))
+      );
+    }
+
+    match /countries/{countryCode} {
+      allow read: if activeUser();
+      allow create, update: if admin() && validCountry(request.resource.data, countryCode);
+      allow delete: if false;
+
+      match /hierarchyLevels/{levelId} {
+        allow read: if activeUser();
+        allow create, update: if admin() && validIdentifier(levelId) && validLevel(request.resource.data);
+        allow delete: if false;
+      }
+    }
+
+    match /locations/{locationId} {
+      allow read: if activeUser();
+      allow create: if countryManager(request.resource.data.countryCode) && validIdentifier(locationId) && validLocation(request.resource.data, locationId) && validLocationLevel(request.resource.data) &&
+        request.resource.data.parentUid != null &&
+        exists(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)) &&
+        get(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)).data.countryCode == request.resource.data.countryCode &&
+        request.resource.data.levelOrder == get(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)).data.levelOrder + 1 &&
+        request.resource.data.ancestorUids == get(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)).data.ancestorUids.concat([request.resource.data.parentUid]);
+      allow update: if countryManager(resource.data.countryCode) && validLocation(request.resource.data, locationId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'normalizedName', 'type', 'status', 'metadata', 'updatedAt']);
+      // Moving or deleting a subtree requires a trusted server operation that updates descendants atomically.
+      allow delete: if false;
+    }
+
+    match /products/{productId} {
+      allow read: if activeUser();
+      allow write: if verified() && activeUser();
+    }
+
+    match /stock/{stockId} {
+      allow read: if activeUser();
+      allow write: if verified() && activeUser();
+    }
+
+    match /regionalEconomicLevels/{levelId} {
+      allow read: if activeUser();
+      allow write: if admin();
+    }
+
+    match /shops/{shopId} {
+      allow read: if activeUser();
+      allow create: if verified() && activeUser();
+      allow update: if admin() || (verified() && activeUser() && resource.data.ownerId == request.auth.uid);
+      allow delete: if admin();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
-
-    // ===============================================================
-    // PRIMITIVE HELPERS
-    // ===============================================================
-    function isSignedIn() { return request.auth != null; }
-    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-    
-    // Path Variable Hardening (Pillar 3)
-    function isValidId(id) { 
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
-    }
-
-    // Identity Logic (Pillar 4)
-    function isOwner(userId) { 
-      return isSignedIn() && request.auth.uid == userId; 
-    }
-    
-    function isAdmin() {
-      return isVerified() && (
-        request.auth.token.email == "jabuyapm@gmail.com" ||
-        request.auth.token.email == "kamwangaraheem2050@gmail.com" ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
-    }
-
-    // ===============================================================
-    // VALIDATION BLUEPRINTS (Pillar 2)
-    // ===============================================================
-    
-    function isValidProduct(data) {
-      return data.keys().hasAll(['id', 'sn', 'name', 'status']) &&
-             data.id is number &&
-             data.sn is string && data.sn.size() > 0 && data.sn.size() < 100 &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
-             data.status in ['ACTIVE', 'INACTIVE'] &&
-             (!('barcode' in data) || (data.barcode is string && data.barcode.size() < 100)) &&
-             (!('manufacturer' in data) || (data.manufacturer is string && data.manufacturer.size() < 200)) &&
-             (!('category' in data) || (data.category is string && data.category.size() < 100)) &&
-             (!('baseUnit' in data) || (data.baseUnit is string && data.baseUnit.size() < 100)) &&
-             (!('containerUnit' in data) || (data.containerUnit is string && data.containerUnit.size() < 100)) &&
-             (!('saleUnits' in data) || (data.saleUnits is string && data.saleUnits.size() < 100)) &&
-             (!('baseQuantity' in data) || (data.baseQuantity is number)) &&
-             (!('containerQuantity' in data) || (data.containerQuantity is number)) &&
-             (!('createdBy' in data) || (data.createdBy is string && data.createdBy.size() < 200)) &&
-             (!('createdAt' in data) || (data.createdAt is string && data.createdAt.size() < 100)) &&
-             (!('hasBatchNumber' in data) || (data.hasBatchNumber is bool)) &&
-             (!('hasExpiryDate' in data) || (data.hasExpiryDate is bool)) &&
-             (!('isGlobal' in data) || (data.isGlobal is bool));
-    }
-
-    function isValidStock(data) {
-      return data.keys().hasAll(['id', 'productName', 'productSN', 'quantity', 'shopId']) &&
-             data.id is number &&
-             data.productName is string && data.productName.size() > 0 && data.productName.size() < 200 &&
-             data.productSN is string && data.productSN.size() > 0 && data.productSN.size() < 100 &&
-             data.quantity is number &&
-             data.shopId is number &&
-             (!('customName' in data) || (data.customName is string && data.customName.size() < 200)) &&
-             (!('barcode' in data) || (data.barcode is string && data.barcode.size() < 100)) &&
-             (!('category' in data) || (data.category is string && data.category.size() < 100)) &&
-             (!('unit' in data) || (data.unit is string && data.unit.size() < 50)) &&
-             (!('unitPrice' in data) || (data.unitPrice is number)) &&
-             (!('currency' in data) || (data.currency is string && data.currency.size() < 10)) &&
-             (!('listedBy' in data) || (data.listedBy is string && data.listedBy.size() < 100)) &&
-             (!('listedOn' in data) || (data.listedOn is string && data.listedOn.size() < 100)) &&
-             (!('shopName' in data) || (data.shopName is string && data.shopName.size() < 200)) &&
-             (!('manufacturer' in data) || (data.manufacturer is string && data.manufacturer.size() < 200)) &&
-             (!('baseUnit' in data) || (data.baseUnit is string && data.baseUnit.size() < 50)) &&
-             (!('hasMultipleSaleUnits' in data) || (data.hasMultipleSaleUnits is bool)) &&
-             (!('allowMix' in data) || (data.allowMix is bool)) &&
-             (!('reorderPoint' in data) || (data.reorderPoint is number)) &&
-             (!('supplier' in data) || (data.supplier is string && data.supplier.size() < 200));
-    }
-
-    function isValidShop(data) {
-      return data.keys().hasAll(['id', 'name', 'ownerId']) &&
-             data.id is number &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
-             data.ownerId is number;
-    }
-
-    function isValidUser(data, userId) {
-      return data.keys().hasAll(['uid', 'email']) &&
-             data.uid == userId &&
-             data.email is string && data.email.size() > 0 && data.email.size() < 256 &&
-             (!('name' in data) || (data.name is string && data.name.size() < 200)) &&
-             (!('role' in data) || (data.role is string && data.role.size() < 50)) &&
-             (!('bio' in data) || (data.bio is string && data.bio.size() < 500)) &&
-             (!('avatar' in data) || data.avatar == null || (data.avatar is string && data.avatar.size() < 2000)) &&
-             (!('id' in data) || (data.id is string || data.id is number));
-    }
-
-    function isValidRegionalLevel(data) {
-      return data.keys().hasAll(['id', 'name', 'abbreviation']) &&
-             data.id is number &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
-             data.abbreviation is string && data.abbreviation.size() > 0 && data.abbreviation.size() < 20 &&
-             (!('countries' in data) || (data.countries is list && data.countries.size() <= 60 && (data.countries.size() == 0 || data.countries[0] is string))) &&
-             (!('level' in data) || (data.level is number));
-    }
-
-    // ===============================================================
-    // RESOURCE RULES
-    // ===============================================================
-
-    // User Profiles
-    match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-      allow create: if isOwner(userId) && isValidUser(incoming(), userId);
-      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(incoming(), userId) && (
-        incoming().uid == existing().uid && 
-        incoming().email == existing().email &&
-        (
-          // Action: Update Profile
-          (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'bio', 'avatar', 'id', 'role', 'gender', 'dateOfBirth', 'idType', 'idNumber', 'idDocument', 'selfie'])) ||
-          // Action: Admin Role Change
-          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'status']))
-        )
-      );
-      allow delete: if isAdmin();
-    }
-
-    // Shops
-    match /shops/{shopId} {
-      allow read: if true;
-      allow create: if (isAdmin() || isVerified()) && isValidShop(incoming()) && isValidId(shopId);
-      allow update: if (isAdmin() || (isSignedIn() && existing().ownerId == request.auth.uid)) && isValidId(shopId) && isValidShop(incoming()) && (
-        incoming().id == existing().id &&
-        (
-          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'status', 'ownerId'])) ||
-          (existing().ownerId == request.auth.uid && incoming().diff(existing()).affectedKeys().hasOnly(['name']))
-        )
-      );
-      allow delete: if isAdmin();
-    }
-
-    // Products
-    match /products/{productId} {
-      allow read: if true;
-      allow create: if (isAdmin() || isVerified()) && isValidProduct(incoming()) && isValidId(productId);
-      allow update: if (isAdmin() || isVerified()) && isValidProduct(incoming()) && isValidId(productId) && (
-        incoming().id == existing().id &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'status', 'barcode', 'manufacturer', 'category', 'baseUnit', 'baseQuantity', 'containerUnit', 'containerQuantity', 'saleUnits', 'hasBatchNumber', 'hasExpiryDate', 'isGlobal'])
-      );
-      allow delete: if isAdmin();
-    }
-
-    // Stock Items
-    match /stock/{stockId} {
-      allow read: if true;
-      allow create: if (isAdmin() || isVerified()) && isValidStock(incoming()) && isValidId(stockId);
-      allow update: if (isAdmin() || isVerified()) && isValidStock(incoming()) && isValidId(stockId) && (
-        incoming().id == existing().id &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['quantity', 'unitPrice', 'customName', 'reorderPoint', 'allowMix', 'supplier', 'unit', 'currency', 'category', 'barcode', 'manufacturer', 'baseUnit', 'hasMultipleSaleUnits'])
-      );
-      allow delete: if isVerified();
-    }
-
-    // Regional Economic Levels
-    match /regionalEconomicLevels/{levelId} {
-      allow read: if true;
-      allow create: if (isAdmin() || isVerified()) && isValidRegionalLevel(incoming()) && isValidId(levelId);
-      allow update: if (isAdmin() || isVerified()) && isValidRegionalLevel(incoming()) && isValidId(levelId) && (
-        incoming().id == existing().id &&
-        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'abbreviation', 'flag', 'description', 'countries', 'level'])
-      );
-      allow delete: if isAdmin();
-    }
-
   }
 }
