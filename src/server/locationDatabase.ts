@@ -49,6 +49,15 @@ export function deterministicUuid(name: string, namespace = UUID_NAMESPACE): str
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+export function locationReferenceCode(countryCode: string, levelOrder: number, uid: string): string {
+  const iso2 = requiredString(countryCode, 'countryCode').toUpperCase();
+  if (!/^[A-Z]{2}$/.test(iso2)) throw new Error('countryCode must be ISO alpha-2');
+  if (!Number.isInteger(levelOrder) || levelOrder < 0 || levelOrder > 99) throw new Error('levelOrder must be between 0 and 99');
+  const stableId = uid.replace(/-/g, '').toUpperCase();
+  if (!/^[A-F0-9]{32}$/.test(stableId)) throw new Error('uid must be a UUID');
+  return `${iso2}-L${String(levelOrder).padStart(2, '0')}-${stableId}`;
+}
+
 export function normalizeLocationName(value: string): string {
   return value
     .normalize('NFKD')
@@ -157,10 +166,10 @@ export class LocationDatabase {
       `).run(uid, country.id, iso2, requiredString(country.name, 'name'), JSON.stringify(profile), now);
 
       this.db.prepare(`
-        INSERT INTO locations(uid, country_uid, level_uid, parent_uid, legacy_id, depth, name, normalized_name, type_label, metadata_json)
-        VALUES (?, ?, NULL, NULL, NULL, 0, ?, ?, 'Country', '{}')
+        INSERT INTO locations(uid, country_uid, level_uid, parent_uid, legacy_id, depth, name, normalized_name, type_label, metadata_json, reference_code)
+        VALUES (?, ?, NULL, NULL, NULL, 0, ?, ?, 'Country', '{}', ?)
         ON CONFLICT(uid) DO UPDATE SET name = excluded.name, normalized_name = excluded.normalized_name, updated_at = ?
-      `).run(rootUid, uid, country.name, normalizeLocationName(country.name), now);
+      `).run(rootUid, uid, country.name, normalizeLocationName(country.name), locationReferenceCode(iso2, 0, rootUid), now);
 
       this.db.prepare('UPDATE countries SET root_location_uid = ? WHERE uid = ?').run(rootUid, uid);
       this.upsertHierarchyLevelsUnsafe(uid, iso2, country.adminLevelNames || [], country.numberOfAdminLevels || 0);
@@ -443,8 +452,8 @@ export class LocationDatabase {
     this.db.prepare(`
       INSERT INTO locations(
         uid, country_uid, level_uid, parent_uid, legacy_id, depth, name, normalized_name,
-        type_label, status, source_name, source_year, source_path, metadata_json
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        type_label, status, source_name, source_year, source_path, metadata_json, reference_code
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       uid,
       country.uid,
@@ -460,6 +469,7 @@ export class LocationDatabase {
       input.source?.year || null,
       input.source?.path || null,
       JSON.stringify(input.metadata || {}),
+      locationReferenceCode(String(country.iso2), input.levelOrder, uid),
     );
     if (!hydrate) return null;
     const record = this.getLocation(uid);
@@ -475,6 +485,17 @@ export class LocationDatabase {
       LEFT JOIN hierarchy_levels level ON level.uid = location.level_uid
       WHERE location.uid = ?
     `).get(uid) as SqlRow | undefined;
+    return row ? this.rowToLocation(row) : null;
+  }
+
+  getLocationByReferenceCode(referenceCode: string): LocationRecord | null {
+    const row = this.db.prepare(`
+      SELECT location.*, country.iso2, level.level_order, level.level_key, level.name AS level_name
+      FROM locations location
+      JOIN countries country ON country.uid = location.country_uid
+      LEFT JOIN hierarchy_levels level ON level.uid = location.level_uid
+      WHERE location.reference_code = upper(?)
+    `).get(referenceCode.trim()) as SqlRow | undefined;
     return row ? this.rowToLocation(row) : null;
   }
 
@@ -706,6 +727,7 @@ export class LocationDatabase {
   private rowToLocation(row: SqlRow): LocationRecord {
     return {
       uid: String(row.uid),
+      referenceCode: String(row.reference_code),
       countryUid: String(row.country_uid),
       countryCode: String(row.iso2),
       levelUid: row.level_uid == null ? null : String(row.level_uid),

@@ -120,6 +120,7 @@ for (const location of selectedLocations) {
   const uid = String(location.uid);
   bulkWriter.set(firestore.doc(`locations/${uid}`), {
     uid,
+    referenceCode: location.reference_code,
     countryUid: location.country_uid,
     countryCode: location.iso2,
     levelUid: location.level_uid,

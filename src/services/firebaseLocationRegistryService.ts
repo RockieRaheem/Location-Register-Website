@@ -41,6 +41,10 @@ function normalizeName(value: string): string {
   return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+function referenceCode(countryCode: string, levelOrder: number, uid: string): string {
+  return `${countryCode}-L${String(levelOrder).padStart(2, '0')}-${uid.replace(/-/g, '').toUpperCase()}`;
+}
+
 function locationFromDocument(snapshot: { id: string; data(): unknown }): LocationRecord {
   const data = snapshot.data() as FirestoreLocation;
   return { ...data, uid: snapshot.id };
@@ -128,6 +132,7 @@ export const firebaseLocationRegistryService = {
 
       transaction.set(newReference, {
         uid,
+        referenceCode: referenceCode(code, nextLevel.order, uid),
         countryUid: parent.countryUid,
         countryCode: code,
         levelUid: nextLevel.uid,

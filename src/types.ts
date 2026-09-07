@@ -254,6 +254,7 @@ export interface LocationHierarchyLevel {
 
 export interface LocationRecord {
   uid: string;
+  referenceCode: string;
   countryUid: string;
   countryCode: string;
   levelUid: string | null;

@@ -24,6 +24,7 @@ async function seedRegistry() {
     const firestore = context.firestore();
     await setDoc(doc(firestore, 'users', 'ug-manager'), profile('ug-manager', 'manager@example.com', 'country_admin', ['UG']));
     await setDoc(doc(firestore, 'users', 'alice'), profile('alice', 'alice@example.com'));
+    await setDoc(doc(firestore, 'users', 'ug-editor'), profile('ug-editor', 'editor@example.com', 'contributor', ['UG']));
     await setDoc(doc(firestore, 'countries', 'UG'), {
       uid: 'country-ug', code: 'UG', name: 'Uganda', rootLocationUid: 'root-ug', schemaVersion: 1,
     });
@@ -32,7 +33,7 @@ async function seedRegistry() {
       alternateNames: [], allowedTypes: ['Region'], required: true,
     });
     await setDoc(doc(firestore, 'locations', 'root-ug'), {
-      uid: 'root-ug', countryUid: 'country-ug', countryCode: 'UG', levelUid: null, levelOrder: 0,
+      uid: 'root-ug', referenceCode: 'UG-L00-00000000000000000000000000000000', countryUid: 'country-ug', countryCode: 'UG', levelUid: null, levelOrder: 0,
       levelKey: 'country', levelName: 'Country', parentUid: null, ancestorUids: [], name: 'Uganda',
       normalizedName: 'uganda', type: 'Country', status: 'active', metadata: {},
     });
@@ -57,7 +58,7 @@ describe('location hierarchy rules', () => {
   beforeEach(seedRegistry);
 
   const region = {
-    uid: 'region-central', countryUid: 'country-ug', countryCode: 'UG', levelUid: 'ug-level-1', levelOrder: 1,
+    uid: 'region-central', referenceCode: 'UG-L01-00000000000000000000000000000001', countryUid: 'country-ug', countryCode: 'UG', levelUid: 'ug-level-1', levelOrder: 1,
     levelKey: 'region', levelName: 'Region', parentUid: 'root-ug', ancestorUids: ['root-ug'],
     name: 'Central', normalizedName: 'central', type: 'Region', status: 'active', metadata: {},
   };
@@ -68,9 +69,14 @@ describe('location hierarchy rules', () => {
     await assertFails(getDoc(doc(testEnv.unauthenticatedContext().firestore(), 'locations', 'root-ug')));
   });
 
-  it('allows an assigned country manager to create a structurally valid child', async () => {
+  it('denies direct client writes even for an assigned country manager', async () => {
     const firestore = testEnv.authenticatedContext('ug-manager', authToken('manager@example.com')).firestore();
-    await assertSucceeds(setDoc(doc(firestore, 'locations', region.uid), region));
+    await assertFails(setDoc(doc(firestore, 'locations', region.uid), region));
+  });
+
+  it('requires assigned contributors to use the API for writes', async () => {
+    const firestore = testEnv.authenticatedContext('ug-editor', authToken('editor@example.com')).firestore();
+    await assertFails(setDoc(doc(firestore, 'locations', region.uid), region));
   });
 
   it('denies contributors, cross-country writes, and invalid ancestry', async () => {
@@ -84,7 +90,6 @@ describe('location hierarchy rules', () => {
 
   it('denies client-side subtree deletion', async () => {
     const managerDb = testEnv.authenticatedContext('ug-manager', authToken('manager@example.com')).firestore();
-    await assertSucceeds(setDoc(doc(managerDb, 'locations', region.uid), region));
-    await assertFails(import('firebase/firestore').then(({ deleteDoc }) => deleteDoc(doc(managerDb, 'locations', region.uid))));
+    await assertFails(import('firebase/firestore').then(({ deleteDoc }) => deleteDoc(doc(managerDb, 'locations', 'root-ug'))));
   });
 });

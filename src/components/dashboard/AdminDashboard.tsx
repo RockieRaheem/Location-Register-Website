@@ -90,6 +90,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'C
           admin: 'Administrator',
           country_admin: 'Shop Owner',
           contributor: 'Customer',
+          developer: 'Developer',
           manufacturer: 'Manufacturer',
           financial_institution: 'Financial Institution',
         };

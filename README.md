@@ -14,6 +14,7 @@ src/                    Application source
 data/                   Source datasets, generated reports, maps, and local database
 database/migrations/    Versioned SQLite migrations
 firebase/               Firestore indexes/rules, Storage rules, and rule tests
+docs/api/               Versioned API contract and role-access documentation
 scripts/                Database, import, Firebase, geospatial, and smoke utilities
 docs/                   Architecture, audits, security, data, and integration notes
 config/                 Repository-level metadata
@@ -36,5 +37,9 @@ Environment files containing credentials are ignored. `.env.example` is the safe
 - `npm run validate:ec-2022` — source dataset validation.
 - `npm run db:validate` — hierarchy and identifier validation.
 - `npm run test:rules` — Firebase Security Rules tests using local emulators.
+
+## Location API
+
+Authenticated integrations use `/api/v1`. Every request supplies a Firebase ID token in `Authorization: Bearer <token>`, and every location response includes an immutable `referenceCode`. See [API access and roles](docs/api/README.md).
 
 The default SQLite file is `data/database/location-register.sqlite`. Firebase configuration and operating guidance are documented under [`docs/integrations`](docs/integrations) and [`docs/security`](docs/security).

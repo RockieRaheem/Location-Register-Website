@@ -67,6 +67,20 @@ try {
   `).get() as Row | undefined;
   if (invalidParent) fail(`invalid parent relationship for ${invalidParent.uid}`);
 
+  const invalidReferenceCode = database.db.prepare(`
+    SELECT uid, reference_code FROM locations
+    WHERE reference_code IS NULL
+      OR reference_code NOT GLOB '[A-Z][A-Z]-L[0-9][0-9]-[A-F0-9]*'
+      OR length(reference_code) != 39
+    LIMIT 1
+  `).get() as Row | undefined;
+  if (invalidReferenceCode) fail(`invalid reference code for ${invalidReferenceCode.uid}`);
+
+  const duplicateReferenceCode = database.db.prepare(`
+    SELECT reference_code FROM locations GROUP BY reference_code HAVING COUNT(*) > 1 LIMIT 1
+  `).get() as Row | undefined;
+  if (duplicateReferenceCode) fail(`duplicate reference code ${duplicateReferenceCode.reference_code}`);
+
   const sourceRows = Number((database.db.prepare(`
     SELECT COUNT(*) AS count FROM locations
     WHERE json_extract(metadata_json, '$.managedBy') = 'electoral-commission-2022'
@@ -111,6 +125,7 @@ try {
     statistics,
     ugandaByDepth: counts,
     geospatial: { geometries: geometryCount, externalIds: externalIdCount },
+    referenceCodes: { valid: true, unique: true, count: statistics.locations },
     sourceSha256: UGANDA_ELECTORAL_COMMISSION_2022_METADATA.sourceSha256,
     punctuationDistinctVillagesPreserved: collisionNames,
   };

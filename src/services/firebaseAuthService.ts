@@ -12,7 +12,7 @@ import {
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../config/firebase';
 
-export type ApplicationRole = 'admin' | 'country_admin' | 'contributor' | 'manufacturer' | 'financial_institution';
+export type ApplicationRole = 'admin' | 'country_admin' | 'contributor' | 'developer' | 'manufacturer' | 'financial_institution';
 
 export interface FirebaseUserProfile {
   uid: string;
@@ -24,7 +24,7 @@ export interface FirebaseUserProfile {
   assignedCountryCodes: string[];
 }
 
-const applicationRoles: ApplicationRole[] = ['admin', 'country_admin', 'contributor', 'manufacturer', 'financial_institution'];
+const applicationRoles: ApplicationRole[] = ['admin', 'country_admin', 'contributor', 'developer', 'manufacturer', 'financial_institution'];
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });

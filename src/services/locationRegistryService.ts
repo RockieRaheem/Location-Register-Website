@@ -1,4 +1,5 @@
 import type { LocationHierarchySchema, LocationRecord } from '../types';
+import { auth } from '../config/firebase';
 
 const API_BASE_URL = '/api/location-registry';
 
@@ -18,7 +19,10 @@ export interface LocationQuery {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const token = await auth.currentUser?.getIdToken();
+  const headers = new Headers(init?.headers);
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const response = await fetch(url, { ...init, headers });
   if (!response.ok) {
     const body = await response.json().catch(() => ({ message: response.statusText }));
     throw new Error(body.message || `Location registry request failed (${response.status})`);

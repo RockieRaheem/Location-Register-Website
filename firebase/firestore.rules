@@ -32,6 +32,14 @@ service cloud.firestore {
       );
     }
 
+    function countryContributor(countryCode) {
+      return verified() && activeUser() && (
+        profile().role == 'admin' ||
+        ((profile().role == 'country_admin' || profile().role == 'contributor') &&
+          profile().assignedCountryCodes.hasAny([countryCode]))
+      );
+    }
+
     function validIdentifier(value) {
       return value is string && value.size() > 0 && value.size() <= 128 && value.matches('^[A-Za-z0-9_-]+$');
     }
@@ -42,7 +50,7 @@ service cloud.firestore {
         data.uid == userId && data.email is string && data.email.size() <= 254 &&
         data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
         (data.avatar == null || (data.avatar is string && data.avatar.size() <= 2000)) &&
-        data.role in ['admin', 'country_admin', 'contributor', 'manufacturer', 'financial_institution'] &&
+        data.role in ['admin', 'country_admin', 'contributor', 'developer', 'manufacturer', 'financial_institution'] &&
         data.status in ['active', 'disabled'] && data.assignedCountryCodes is list && data.assignedCountryCodes.size() <= 60;
     }
 
@@ -63,8 +71,9 @@ service cloud.firestore {
     }
 
     function validLocation(data, locationId) {
-      return data.keys().hasAll(['uid', 'countryUid', 'countryCode', 'levelOrder', 'levelKey', 'levelName', 'parentUid', 'ancestorUids', 'name', 'normalizedName', 'type', 'status', 'metadata']) &&
+      return data.keys().hasAll(['uid', 'referenceCode', 'countryUid', 'countryCode', 'levelOrder', 'levelKey', 'levelName', 'parentUid', 'ancestorUids', 'name', 'normalizedName', 'type', 'status', 'metadata']) &&
         data.uid == locationId && data.countryUid is string && data.countryCode.matches('^[A-Z]{2}$') &&
+        data.referenceCode is string && data.referenceCode.matches('^[A-Z]{2}-L[0-9]{2}-[A-F0-9]{32}$') &&
         (data.levelUid == null || data.levelUid is string) && data.levelOrder is int && data.levelOrder >= 0 && data.levelOrder <= 20 &&
         data.levelKey is string && data.levelName is string &&
         (data.parentUid == null || data.parentUid is string) && data.ancestorUids is list && data.ancestorUids.size() <= 20 &&
@@ -110,16 +119,9 @@ service cloud.firestore {
 
     match /locations/{locationId} {
       allow read: if activeUser();
-      allow create: if countryManager(request.resource.data.countryCode) && validIdentifier(locationId) && validLocation(request.resource.data, locationId) && validLocationLevel(request.resource.data) &&
-        request.resource.data.parentUid != null &&
-        exists(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)) &&
-        get(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)).data.countryCode == request.resource.data.countryCode &&
-        request.resource.data.levelOrder == get(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)).data.levelOrder + 1 &&
-        request.resource.data.ancestorUids == get(/databases/$(database)/documents/locations/$(request.resource.data.parentUid)).data.ancestorUids.concat([request.resource.data.parentUid]);
-      allow update: if countryManager(resource.data.countryCode) && validLocation(request.resource.data, locationId) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'normalizedName', 'type', 'status', 'metadata', 'updatedAt']);
-      // Moving or deleting a subtree requires a trusted server operation that updates descendants atomically.
-      allow delete: if false;
+      // All mutations go through the authenticated API. Admin SDK imports bypass rules,
+      // preserving global reference-code uniqueness and atomic subtree operations.
+      allow create, update, delete: if false;
     }
 
     match /products/{productId} {
