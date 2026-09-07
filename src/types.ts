@@ -272,6 +272,15 @@ export interface LocationRecord {
   metadata: Record<string, unknown>;
 }
 
+export interface LocationGeometry {
+  locationUid: string;
+  type: string;
+  geometry: Record<string, unknown>;
+  bbox?: [number, number, number, number];
+  sourceName: string;
+  sourceVersion?: string;
+}
+
 export interface LocationHierarchySchema {
   countryUid: string;
   countryCode: string;

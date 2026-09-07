@@ -102,12 +102,15 @@ try {
   }
 
   const statistics = database.getStatistics();
+  const geometryCount = Number((database.db.prepare('SELECT COUNT(*) AS count FROM location_geometries').get() as Row).count);
+  const externalIdCount = Number((database.db.prepare(`SELECT COUNT(*) AS count FROM location_external_ids WHERE authority = 'UG_ADMIN_PCODE'`).get() as Row).count);
   const report = {
     valid: true,
     databasePath,
     integrity,
     statistics,
     ugandaByDepth: counts,
+    geospatial: { geometries: geometryCount, externalIds: externalIdCount },
     sourceSha256: UGANDA_ELECTORAL_COMMISSION_2022_METADATA.sourceSha256,
     punctuationDistinctVillagesPreserved: collisionNames,
   };

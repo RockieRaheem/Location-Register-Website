@@ -135,6 +135,12 @@ async function startServer() {
     return response.json(locationDatabase.getAncestors(request.params.uid));
   });
 
+  app.get('/api/location-registry/locations/:uid/geometry', (request, response) => {
+    if (!locationDatabase.getLocation(request.params.uid)) return response.status(404).json({ message: 'Location not found' });
+    const geometry = locationDatabase.getGeometry(request.params.uid);
+    return geometry ? response.json(geometry) : response.status(404).json({ message: 'Geometry not available for this location' });
+  });
+
   app.get('/api/location-registry/locations/:uid/descendants', (request, response) => {
     if (!locationDatabase.getLocation(request.params.uid)) return response.status(404).json({ message: 'Location not found' });
     return response.json(locationDatabase.getDescendants(

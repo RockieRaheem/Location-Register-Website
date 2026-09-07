@@ -1,0 +1,28 @@
+{
+  "valid": true,
+  "databasePath": "C:\\Users\\Raheem\\Desktop\\Location-Register-Website\\data\\database\\location-register.sqlite",
+  "matched": 1468,
+  "unmatched": 400,
+  "unmatchedExamples": [
+    "UGANDA > CENTRAL > LUWERO",
+    "UGANDA > NORTHERN > MADI OKOLLO",
+    "UGANDA > NORTHERN > AGAGO > AGAGO",
+    "UGANDA > EASTERN > AMURIA > AMURIA",
+    "UGANDA > NORTHERN > YUMBE > ARINGA",
+    "UGANDA > NORTHERN > ARUA > ARUA MUNICIPALITY",
+    "UGANDA > NORTHERN > PADER > ARUU",
+    "UGANDA > NORTHERN > GULU > ASWA",
+    "UGANDA > NORTHERN > ARUA > AYIVU",
+    "UGANDA > CENTRAL > LUWERO > BAMUNANIKA",
+    "UGANDA > CENTRAL > KAYUNGA > BBAALE",
+    "UGANDA > NORTHERN > NAPAK > BOKORA",
+    "UGANDA > EASTERN > MANAFWA > BUBULO",
+    "UGANDA > EASTERN > NAMISINDWA > BUBULO",
+    "UGANDA > EASTERN > SIRONKO > BUDADIRI",
+    "UGANDA > EASTERN > BUDAKA > BUDAKA",
+    "UGANDA > EASTERN > BUYENDE > BUDIOPE",
+    "UGANDA > WESTERN > KISORO > BUFUMBIRA",
+    "UGANDA > EASTERN > KAMULI > BUGABULA",
+    "UGANDA > WESTERN > HOIMA > BUGAHYA"
+  ]
+}

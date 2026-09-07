@@ -8,6 +8,7 @@ import type {
   Country,
   LocationHierarchyLevel,
   LocationHierarchySchema,
+  LocationGeometry,
   LocationRecord,
 } from '../types.ts';
 
@@ -624,6 +625,54 @@ export class LocationDatabase {
       VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(location_uid, normalized_alias, locale) DO UPDATE SET alias = excluded.alias, source_name = excluded.source_name
     `).run(randomUUID(), locationUid, value, normalizeLocationName(value), locale || null, sourceName || null);
+  }
+
+  upsertExternalId(locationUid: string, authority: string, externalId: string, sourceVersion?: string): void {
+    if (!this.getLocation(locationUid)) throw new Error('Location not found');
+    this.db.prepare(`
+      INSERT INTO location_external_ids(location_uid, authority, external_id, source_version)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(authority, external_id, source_version)
+      DO UPDATE SET location_uid = excluded.location_uid
+    `).run(locationUid, requiredString(authority, 'authority'), requiredString(externalId, 'externalId'), sourceVersion || '');
+  }
+
+  upsertGeometry(input: LocationGeometry): void {
+    if (!this.getLocation(input.locationUid)) throw new Error('Location not found');
+    this.db.prepare(`
+      INSERT INTO location_geometries(location_uid, geometry_type, geometry_json, bbox_json, source_name, source_version)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(location_uid) DO UPDATE SET
+        geometry_type = excluded.geometry_type,
+        geometry_json = excluded.geometry_json,
+        bbox_json = excluded.bbox_json,
+        source_name = excluded.source_name,
+        source_version = excluded.source_version,
+        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    `).run(
+      input.locationUid,
+      requiredString(input.type, 'type'),
+      JSON.stringify(input.geometry),
+      input.bbox ? JSON.stringify(input.bbox) : null,
+      requiredString(input.sourceName, 'sourceName'),
+      input.sourceVersion || null,
+    );
+  }
+
+  getGeometry(locationUid: string): LocationGeometry | undefined {
+    const row = this.db.prepare(`
+      SELECT location_uid, geometry_type, geometry_json, bbox_json, source_name, source_version
+      FROM location_geometries WHERE location_uid = ?
+    `).get(locationUid) as SqlRow | undefined;
+    if (!row) return undefined;
+    return {
+      locationUid: String(row.location_uid),
+      type: String(row.geometry_type),
+      geometry: parseJson<Record<string, unknown>>(row.geometry_json, {}),
+      bbox: row.bbox_json == null ? undefined : parseJson<[number, number, number, number]>(row.bbox_json, undefined as never),
+      sourceName: String(row.source_name),
+      sourceVersion: row.source_version == null ? undefined : String(row.source_version),
+    };
   }
 
   getStatistics(countryCode?: string): Record<string, number> {
