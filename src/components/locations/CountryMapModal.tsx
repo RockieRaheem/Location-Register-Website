@@ -311,6 +311,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [showNavigationPanel, setShowNavigationPanel] = useState(true);
   const [scale, setScale] = useState(1);
   
   // Dynamic 6-Level Drill-down states
@@ -859,13 +860,13 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-md"
+        className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md ${isFullScreen ? 'p-0' : 'p-1 sm:p-3'}`}
       >
         <motion.div
           initial={{ scale: 0.95, opacity: 0, y: 15 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.95, opacity: 0, y: 15 }}
-          className={`relative w-full max-w-7xl ${isFullScreen ? 'h-[98vh]' : 'h-[92vh] sm:h-[94vh]'} rounded-xl sm:rounded-2xl shadow-2xl overflow-hidden flex flex-col ${
+          className={`relative w-full ${isFullScreen ? 'h-[100dvh] max-w-none rounded-none' : 'h-[96dvh] max-w-[1600px] rounded-xl sm:rounded-2xl'} shadow-2xl overflow-hidden flex flex-col ${
             theme === 'dark' ? 'bg-slate-950 border border-slate-800' : 'bg-slate-50 border border-slate-200'
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -887,6 +888,16 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
             </div>
             
             <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowNavigationPanel((visible) => !visible)}
+                className={`hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  theme === 'dark' ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-100 text-slate-600'
+                }`}
+                title={showNavigationPanel ? 'Hide hierarchy panel' : 'Show hierarchy panel'}
+              >
+                <ChevronRight size={15} className={`transition-transform ${showNavigationPanel ? 'rotate-180' : ''}`} />
+                <span>{showNavigationPanel ? 'Expand map' : 'Show hierarchy'}</span>
+              </button>
               <div className={`hidden sm:flex items-center space-x-1 p-1 rounded-xl ${theme === 'dark' ? 'bg-slate-900/80' : 'bg-slate-100'}`}>
                 <button
                   onClick={handleZoomOut}
@@ -972,7 +983,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
           <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
             
             {/* Sidebar Navigation & Checklist */}
-            <div className={`w-full md:w-80 border-b md:border-b-0 md:border-r shrink-0 flex flex-col min-h-0 ${
+            <div className={`${showNavigationPanel ? 'flex' : 'hidden'} w-full md:w-72 xl:w-80 max-h-[34vh] md:max-h-none border-b md:border-b-0 md:border-r shrink-0 flex-col min-h-0 ${
               theme === 'dark' ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-200 bg-white text-slate-900'
             }`}>
               
@@ -1233,7 +1244,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
             {/* Map Stage Window */}
             <div 
               ref={containerRef}
-              className="flex-1 overflow-hidden flex items-center justify-center relative bg-transparent cursor-grab active:cursor-grabbing min-h-0"
+              className="flex-1 overflow-hidden flex items-center justify-center relative bg-transparent cursor-grab active:cursor-grabbing min-h-[320px] touch-none"
               onMouseMove={(e) => {
                 if (containerRef.current) {
                   const rect = containerRef.current.getBoundingClientRect();
@@ -1272,7 +1283,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="w-full h-full relative flex items-center justify-center p-4">
+                <div className="w-full h-full relative flex items-center justify-center p-1 sm:p-2">
                   
                   {/* Floating Analytical Controls */}
                   <div className="absolute top-4 left-4 z-20 flex gap-2">

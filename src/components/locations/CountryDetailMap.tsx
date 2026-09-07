@@ -336,10 +336,14 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
 
   // Reset viewport when changing drilldown levels
   const handleReset = () => {
-    setScale(1);
+    setScale(countryId === 'UG' && !drillDownDistrict ? 1.12 : 1);
     x.set(0);
     y.set(0);
   };
+
+  useEffect(() => {
+    handleReset();
+  }, [countryId]);
 
   const handleSelectDistrict = (districtName: string) => {
     setDrillDownDistrict(districtName);
@@ -458,7 +462,7 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
     <div 
       ref={containerRef}
       id="country-detail-container"
-      className="relative w-full h-full overflow-hidden bg-transparent flex flex-col cursor-grab active:cursor-grabbing select-none"
+      className="relative w-full h-full overflow-hidden bg-transparent flex flex-col cursor-grab active:cursor-grabbing select-none touch-none"
     >
       {/* Top Header / Breadcrumbs Bar */}
       <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
@@ -610,7 +614,7 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
       </div>
 
       {/* Main SVG Map Canvas */}
-      <div className="flex-1 relative w-full h-full min-h-0 flex items-center justify-center p-1 sm:p-2">
+      <div className="flex-1 relative w-full h-full min-h-0 flex items-center justify-center p-0">
         <svg 
           id="country-svg-map"
           viewBox={

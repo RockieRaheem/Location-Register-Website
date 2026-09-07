@@ -24,7 +24,7 @@ const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regio
     }, [shops]);
 
     return (
-        <div className={`h-[calc(100vh-120px)] min-h-[680px] lg:min-h-[820px] w-full flex flex-col items-center justify-center p-2 sm:p-3 rounded-2xl relative overflow-hidden border shadow-xl ${theme === 'dark' ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100/70'}`}>
+        <div className={`h-[calc(100dvh-112px)] min-h-[560px] w-full flex flex-col items-center justify-center p-1 sm:p-2 rounded-2xl relative overflow-hidden border shadow-xl ${theme === 'dark' ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-slate-100/70'}`}>
             {/* Map Container */}
             <div className="relative w-full h-full flex-1 min-h-0 flex items-center justify-center">
                 {selectedCountryId ? (
