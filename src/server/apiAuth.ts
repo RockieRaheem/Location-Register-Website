@@ -7,6 +7,12 @@ export type { ApiPermission, ApiPrincipal, ApiRole } from './apiPolicy.ts';
 const principals = new WeakMap<Request, ApiPrincipal>();
 const projectId = process.env.FIREBASE_PROJECT_ID || 'any-location-36e76';
 const checkRevokedTokens = process.env.FIREBASE_CHECK_REVOKED_TOKENS === 'true';
+const ownerEmails = new Set(
+  (process.env.OWNER_EMAILS || '')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
 
 if (getApps().length === 0) initializeApp({ projectId });
 
@@ -21,7 +27,8 @@ export const authenticateApiRequest: RequestHandler = async (request, response, 
   if (!token) return response.status(401).json({ code: 'AUTHENTICATION_REQUIRED', message: 'Supply a Firebase ID token as a Bearer token.' });
   try {
     const decoded = await getAuth().verifyIdToken(token, checkRevokedTokens);
-    const role = String(decoded.role || '') as ApiRole;
+    const isOwner = Boolean(decoded.email && ownerEmails.has(decoded.email.toLowerCase()));
+    const role = (isOwner ? 'admin' : String(decoded.role || '')) as ApiRole;
     if (!decoded.email_verified) return response.status(403).json({ code: 'EMAIL_NOT_VERIFIED', message: 'A verified email address is required.' });
     if (!apiRoles.has(role)) return response.status(403).json({ code: 'ROLE_NOT_ASSIGNED', message: 'No supported API role is assigned to this account.' });
     if (decoded.status === 'disabled') return response.status(403).json({ code: 'ACCOUNT_DISABLED', message: 'This account is disabled.' });
@@ -33,6 +40,18 @@ export const authenticateApiRequest: RequestHandler = async (request, response, 
   } catch {
     return response.status(401).json({ code: 'INVALID_TOKEN', message: 'The Firebase ID token is invalid, expired, or revoked.' });
   }
+};
+
+export function isOwnerRequest(request: Request): boolean {
+  const email = apiPrincipal(request).email?.toLowerCase();
+  return Boolean(email && ownerEmails.has(email));
+}
+
+export const authorizeOwner: RequestHandler = (request, response, next) => {
+  if (!isOwnerRequest(request)) {
+    return response.status(403).json({ code: 'OWNER_REQUIRED', message: 'Only a configured system owner can assign application roles.' });
+  }
+  return next();
 };
 
 export function apiPrincipal(request: Request): ApiPrincipal {

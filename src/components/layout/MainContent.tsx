@@ -13,7 +13,7 @@ import StockListingPage from '../inventory/StockListingPage';
 import InventoryPage from '../inventory/InventoryPage';
 import CountriesPage from '../locations/CountriesPage';
 import ShopUsersPage from '../commerce/ShopUsersPage';
-import SuperUsersPage from '../users/SuperUsersPage';
+import RegistrationRolesPage from '../users/RegistrationRolesPage';
 import PermissionsPage from '../users/PermissionsPage';
 import StockPurchasePage from '../inventory/StockPurchasePage';
 import RolesPage from '../users/RolesPage';
@@ -143,7 +143,7 @@ const titles: Record<string, string> = {
     'regional-economic-levels': 'Regional Economic Levels',
     'country-profile': 'Country Profile',
     'shop-users': 'Country admin',
-    'super-users': 'Super Users',
+    'super-users': 'Registrations & Roles',
     'permissions': 'Permissions',
     'roles': 'Roles',
     'stock-purchase': 'Stock Purchase',
@@ -300,7 +300,7 @@ const MainContent: React.FC<MainContentProps> = ({
       case 'shop-users':
         return <ShopUsersPage theme={theme} shopRoles={shopRoles} setVerificationRequests={setVerificationRequests} shopUsers={shopUsers} setShopUsers={setShopUsers} currentUser={currentUser} />;
       case 'super-users':
-        return <SuperUsersPage theme={theme} />;
+        return <RegistrationRolesPage theme={theme} />;
       case 'permissions':
         return <PermissionsPage theme={theme} shopRoles={shopRoles} superUserRoles={superUserRoles} setShopRoles={setShopRoles} setSuperUserRoles={setSuperUserRoles} />;
       case 'roles':

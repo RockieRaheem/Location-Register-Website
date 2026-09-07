@@ -23,6 +23,7 @@ import {
   type ApplicationRole,
 } from '../../services/firebaseAuthService';
 import { countryService } from '../../services/countryService';
+import { getCurrentApiSession } from '../../services/userAdministrationService';
 import FirebaseErrorBoundary from '../shared/FirebaseErrorBoundary';
 import Icon from '../shared/Icon';
 
@@ -94,7 +95,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'C
           manufacturer: 'Manufacturer',
           financial_institution: 'Financial Institution',
         };
-        const resolvedRole = roleMap[profile.role];
+        const session = await getCurrentApiSession().catch(() => null);
+        const resolvedRole = session?.isOwner ? 'Administrator' : roleMap[profile.role];
         setDashboardRole(resolvedRole);
         setActiveView(['Contributor', 'Developer'].includes(resolvedRole) ? 'countries-map' : 'dashboard');
         setUser((current) => ({
@@ -104,7 +106,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'C
           email: profile.email,
           role: resolvedRole,
           avatar: profile.avatar,
-          bio: profile.role === 'admin' ? 'System Administrator' : current.bio,
+          bio: session?.isOwner ? 'System Owner' : profile.role === 'admin' ? 'System Administrator' : current.bio,
         }));
         setHasAuthorizedProfile(true);
       } catch (error) {

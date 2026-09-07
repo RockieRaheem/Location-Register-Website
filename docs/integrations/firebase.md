@@ -68,6 +68,12 @@ Review index deployment in the console; large indexes can take time to build.
 
 ## Bootstrap roles safely
 
+### Recommended owner UI
+
+Set `OWNER_EMAILS` on the trusted server to the verified Firebase email address of the system owner. After signing in, the owner opens **User mgt → Registrations & Roles** to assign roles, country scope, or disable an account. New registrations remain contributors with no country write scope until the owner approves them. Role changes are performed by the server with Firebase Admin; private service-account credentials are never sent to the browser.
+
+The commands below remain available only as a recovery method if the owner UI cannot be reached.
+
 Set `GOOGLE_APPLICATION_CREDENTIALS` to an absolute service-account JSON path outside the repository and set `FIREBASE_PROJECT_ID=any-location-36e76`. Preview, then explicitly commit:
 
 ```powershell

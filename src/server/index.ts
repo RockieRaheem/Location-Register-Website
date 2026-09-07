@@ -3,10 +3,13 @@ import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createServer as createHttpServer } from 'node:http';
+import { getAuth } from 'firebase-admin/auth';
+import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { allAfricanCountries } from '../data/mockData.ts';
 import type { AdminLevelName, Country, LocationRecord } from '../types.ts';
 import { LocationDatabase, type NewLocationInput } from './locationDatabase.ts';
-import { apiPrincipal, authenticateApiRequest, authorize } from './apiAuth.ts';
+import { apiPrincipal, authenticateApiRequest, authorize, authorizeOwner, isOwnerRequest } from './apiAuth.ts';
+import { apiRoles, type ApiRole } from './apiPolicy.ts';
 
 const databasePath = process.env.LOCATION_DATABASE_PATH
   ? path.resolve(process.env.LOCATION_DATABASE_PATH)
@@ -56,6 +59,67 @@ async function startServer() {
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
   app.use('/api', authenticateApiRequest);
+
+  app.get('/api/v1/session', (request, response) => {
+    const principal = apiPrincipal(request);
+    return response.json({ ...principal, isOwner: isOwnerRequest(request) });
+  });
+
+  app.get('/api/v1/admin/users', authorizeOwner, async (_request, response) => {
+    try {
+      const result = await getAuth().listUsers(1000);
+      return response.json({
+        items: result.users.map((account) => ({
+          uid: account.uid,
+          email: account.email || '',
+          name: account.displayName || account.email?.split('@')[0] || 'User',
+          emailVerified: account.emailVerified,
+          disabled: account.disabled,
+          role: String(account.customClaims?.role || 'contributor'),
+          assignedCountryCodes: Array.isArray(account.customClaims?.assignedCountryCodes) ? account.customClaims.assignedCountryCodes : [],
+          createdAt: account.metadata.creationTime,
+          lastSignInAt: account.metadata.lastSignInTime || null,
+        })),
+      });
+    } catch (error) {
+      console.error('Unable to list Firebase users', error);
+      return response.status(500).json({ message: 'Unable to load registered users. Check the server Firebase Admin credentials.' });
+    }
+  });
+
+  app.patch('/api/v1/admin/users/:uid/access', authorizeOwner, async (request, response) => {
+    try {
+      const role = String(request.body.role || '') as ApiRole;
+      const status = request.body.status === 'disabled' ? 'disabled' : 'active';
+      const assignedCountryCodes = Array.isArray(request.body.assignedCountryCodes)
+        ? [...new Set(request.body.assignedCountryCodes.map(String).map((code: string) => code.trim().toUpperCase()).filter((code: string) => /^[A-Z]{2}$/.test(code)))]
+        : [];
+      if (!apiRoles.has(role)) return response.status(400).json({ message: 'Select a valid application role.' });
+      if (!['country_admin', 'contributor'].includes(role) && assignedCountryCodes.length > 0) {
+        return response.status(400).json({ message: 'Country assignments apply only to country administrators and contributors.' });
+      }
+      const account = await getAuth().getUser(routeParam(request, 'uid'));
+      if (account.email && (process.env.OWNER_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).includes(account.email.toLowerCase())) {
+        return response.status(409).json({ message: 'The configured owner account cannot be modified from this screen.' });
+      }
+      await getAuth().setCustomUserClaims(account.uid, { role, status, assignedCountryCodes });
+      await getAuth().updateUser(account.uid, { disabled: status === 'disabled' });
+      await getFirestore().doc(`users/${account.uid}`).set({
+        uid: account.uid,
+        email: account.email || '',
+        name: account.displayName || account.email?.split('@')[0] || 'User',
+        avatar: account.photoURL || null,
+        role,
+        status,
+        assignedCountryCodes,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return response.json({ uid: account.uid, role, status, assignedCountryCodes });
+    } catch (error) {
+      console.error('Unable to update Firebase user access', error);
+      return response.status(500).json({ message: 'Unable to update this user. Check the server Firebase Admin credentials.' });
+    }
+  });
 
   const countryFromLocation = (request: express.Request) => locationDatabase.getLocation(routeParam(request, 'uid'))?.countryCode;
   const countryFromReference = (request: express.Request) => locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'))?.countryCode;

@@ -330,7 +330,7 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
                       <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isUserMenuOpen && !isCollapsed ? 'max-h-96' : 'max-h-0'}`}>
                           <div className={`pt-1 space-y-1 ${isCollapsed ? 'hidden' : 'pl-4'}`}>
                               <NavLink isCollapsed={isCollapsed} theme={theme} icon="client-mgt" label={t('sidebar.shopUsers', 'Country User')} active={activeView === 'shop-users'} onClick={() => onNavigate('shop-users')} />
-                              {isSuperAdmin && <NavLink isCollapsed={isCollapsed} theme={theme} icon="user-circle" label={t('sidebar.superUsers', 'Super users')} active={activeView === 'super-users'} onClick={() => onNavigate('super-users')} />}
+                              {isSuperAdmin && <NavLink isCollapsed={isCollapsed} theme={theme} icon="user-circle" label="Registrations & Roles" active={activeView === 'super-users'} onClick={() => onNavigate('super-users')} />}
                               {isSuperAdmin && <NavLink isCollapsed={isCollapsed} theme={theme} icon="key" label={t('sidebar.permissions', 'Permissions')} active={activeView === 'permissions'} onClick={() => onNavigate('permissions')} />}
                               {isSuperAdmin && <NavLink isCollapsed={isCollapsed} theme={theme} icon="user-mgt" label={t('sidebar.roles', 'Roles')} active={activeView === 'roles'} onClick={() => onNavigate('roles')} /> }
                           </div>
