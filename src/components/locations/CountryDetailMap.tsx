@@ -275,6 +275,8 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
   const [hoveredSubdivision, setHoveredSubdivision] = useState<UgandaSubdivision | null>(null);
   const [districtSearch, setDistrictSearch] = useState<string>('');
   const [scale, setScale] = useState(1);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     countryId: string;
@@ -344,6 +346,14 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
   useEffect(() => {
     handleReset();
   }, [countryId]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsFullScreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleSelectDistrict = (districtName: string) => {
     setDrillDownDistrict(districtName);
@@ -462,7 +472,15 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
     <div 
       ref={containerRef}
       id="country-detail-container"
-      className="relative w-full h-full overflow-hidden bg-transparent flex flex-col cursor-grab active:cursor-grabbing select-none touch-none"
+      className={`${isFullScreen ? `fixed inset-0 z-[90] ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-100'}` : 'relative w-full h-full bg-transparent'} overflow-hidden flex flex-col cursor-grab active:cursor-grabbing select-none touch-none`}
+      onPointerMove={(event) => {
+        const bounds = containerRef.current?.getBoundingClientRect();
+        if (!bounds) return;
+        setPointerPosition({
+          x: Math.min(event.clientX - bounds.left + 16, Math.max(16, bounds.width - 230)),
+          y: Math.min(event.clientY - bounds.top + 16, Math.max(16, bounds.height - 72)),
+        });
+      }}
     >
       {/* Top Header / Breadcrumbs Bar */}
       <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
@@ -608,6 +626,14 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
               title="Reset View"
             >
               <RotateCcw size={16} />
+            </button>
+            <button
+              onClick={() => setIsFullScreen((expanded) => !expanded)}
+              className={`p-2 transition-colors border-l ${theme === 'dark' ? 'hover:bg-slate-700 text-slate-300 border-slate-700' : 'hover:bg-slate-100 text-slate-600 border-slate-200'}`}
+              title={isFullScreen ? 'Exit full screen' : 'Open full screen map'}
+              aria-label={isFullScreen ? 'Exit full screen map' : 'Open full screen map'}
+            >
+              <Maximize2 size={16} className={isFullScreen ? 'rotate-180' : ''} />
             </button>
           </div>
         </div>
@@ -1147,6 +1173,21 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
           </motion.g>
         </svg>
       </div>
+
+      {hoveredRegion && (
+        <div
+          className={`absolute z-40 pointer-events-none max-w-[220px] rounded-lg border px-3 py-2 shadow-2xl backdrop-blur-md ${
+            theme === 'dark' ? 'border-slate-600 bg-slate-900/95 text-white' : 'border-slate-200 bg-white/95 text-slate-900'
+          }`}
+          style={{ left: pointerPosition.x, top: pointerPosition.y }}
+          role="tooltip"
+        >
+          <div className="text-sm font-black leading-tight break-words">{hoveredRegion}</div>
+          <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500">
+            {drillDownDivision ? 'Parish / Ward' : drillDownDistrict ? 'Sub-County / Division' : countryId === 'UG' ? 'District / City' : 'Administrative area'}
+          </div>
+        </div>
+      )}
  
       {/* Bottom Cartographic Info Bar & Legend */}
       <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-wrap items-end justify-between gap-3 pointer-events-none">

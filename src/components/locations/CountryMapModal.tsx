@@ -324,6 +324,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   const [selectedDivision, setSelectedDivision] = useState<string | null>(null);
   const [showVillageDetails, setShowVillageDetails] = useState(false);
   const [hoveredEntity, setHoveredEntity] = useState<string | null>(null);
+  const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [entitySearch, setEntitySearch] = useState('');
 
@@ -1248,7 +1249,10 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
               onMouseMove={(e) => {
                 if (containerRef.current) {
                   const rect = containerRef.current.getBoundingClientRect();
-                  handleMouseMove({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                  setPointerPosition({
+                    x: Math.min(e.clientX - rect.left + 16, Math.max(16, rect.width - 230)),
+                    y: Math.min(e.clientY - rect.top + 16, Math.max(16, rect.height - 72)),
+                  });
                 }
               }}
             >
@@ -1823,6 +1827,21 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                   </motion.div>
                 )}
 
+                {hoveredEntity && (
+                  <div
+                    className={`absolute z-40 pointer-events-none max-w-[220px] rounded-lg border px-3 py-2 shadow-2xl backdrop-blur-md ${
+                      theme === 'dark' ? 'border-slate-600 bg-slate-900/95 text-white' : 'border-slate-200 bg-white/95 text-slate-900'
+                    }`}
+                    style={{ left: pointerPosition.x, top: pointerPosition.y }}
+                    role="tooltip"
+                  >
+                    <div className="text-sm font-black leading-tight break-words">{hoveredEntity}</div>
+                    <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500">
+                      {currentLevel === 'regions' ? 'Region' : currentLevel === 'districts' ? 'District / City' : currentLevel === 'subcounties' ? 'Sub-County / Division' : currentLevel === 'parishes' ? 'Parish / Ward' : 'Village / Cell'}
+                    </div>
+                  </div>
+                )}
+
                   {/* SVG Map Legend */}
                   <div className="absolute bottom-4 left-4 z-15 p-2 rounded-lg border backdrop-blur-md flex items-center gap-4 text-[10px] uppercase font-bold tracking-wider shadow-md bg-white border-slate-200 text-slate-700 bg-opacity-95">
                     {currentLevel === 'regions' && (
@@ -1896,12 +1915,6 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
       </motion.div>
     </AnimatePresence>
   );
-};
-
-// Simple mouse move coordinates tracker
-let currentMousePos = { x: 0, y: 0 };
-const handleMouseMove = (pos: { x: number, y: number }) => {
-  currentMousePos = pos;
 };
 
 export default CountryMapModal;
