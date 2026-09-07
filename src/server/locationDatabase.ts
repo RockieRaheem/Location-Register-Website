@@ -9,7 +9,7 @@ import type {
   LocationHierarchyLevel,
   LocationHierarchySchema,
   LocationRecord,
-} from '../../types.ts';
+} from '../types.ts';
 
 const UUID_NAMESPACE = '65f4ff08-09bb-52a7-94de-920fa2298f67';
 

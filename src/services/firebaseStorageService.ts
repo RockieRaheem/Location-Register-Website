@@ -5,7 +5,7 @@ import {
   uploadBytesResumable,
   type UploadTask,
 } from 'firebase/storage';
-import { auth, storage } from '../../firebase';
+import { auth, storage } from '../config/firebase';
 
 function requireStorageEnabled(): void {
   if (import.meta.env.VITE_FIREBASE_STORAGE_ENABLED !== 'true') {

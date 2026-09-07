@@ -1,5 +1,5 @@
 {
-  "name": "duqact-dashboard",
+  "name": "any-location",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,21 +10,21 @@
     "qs": "^6.16.0"
   },
   "scripts": {
-    "dev": "tsx server.ts",
-    "start": "node server.ts",
+    "dev": "tsx src/server/index.ts",
+    "start": "tsx src/server/index.ts",
     "build": "vite build",
-    "db:seed": "tsx scripts/seed-location-database.ts",
-    "db:validate": "tsx scripts/validate-location-database.ts",
-    "firebase:import:locations": "tsx scripts/import-locations-to-firestore.ts",
-    "firebase:set-role": "tsx scripts/set-firebase-user-role.ts",
+    "db:seed": "tsx scripts/database/seed-location-database.ts",
+    "db:validate": "tsx scripts/database/validate-location-database.ts",
+    "firebase:import:locations": "tsx scripts/firebase/import-locations-to-firestore.ts",
+    "firebase:set-role": "tsx scripts/firebase/set-firebase-user-role.ts",
     "firebase:emulators": "firebase emulators:start",
     "firebase:deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes",
-    "validate:ec-2022": "node scripts/validate-electoral-commission-2022.cjs",
+    "validate:ec-2022": "node scripts/data/validate-electoral-commission-2022.cjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:rules": "firebase emulators:exec --only firestore \"npm test -- --runInBand\"",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "lint:rules": "eslint firestore.rules storage.rules"
+    "lint:rules": "eslint firebase/firestore.rules firebase/storage.rules"
   },
   "dependencies": {
     "cors": "^2.8.6",

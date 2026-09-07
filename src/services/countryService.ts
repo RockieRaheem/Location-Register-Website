@@ -1,4 +1,4 @@
-import { Country } from '../../types';
+import { Country } from '../types';
 
 const API_BASE_URL = '/api/countries';
 

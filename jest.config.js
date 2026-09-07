@@ -5,7 +5,7 @@ export default {
     '^.+\\.tsx?$': ['ts-jest', { useESM: true }],
   },
   moduleNameMapper: {
-    '^@/(.*)$': '<rootDir>/$1',
+    '^@/(.*)$': '<rootDir>/src/$1',
   },
   extensionsToTreatAsEsm: ['.ts'],
 };

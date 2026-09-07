@@ -16,9 +16,9 @@ dist-ssr
 !.env.example
 
 # Generated local location-registry databases and SQLite sidecars
-data/*.sqlite
-data/*.sqlite-shm
-data/*.sqlite-wal
+data/database/*.sqlite
+data/database/*.sqlite-shm
+data/database/*.sqlite-wal
 
 # Editor directories and files
 .vscode/*

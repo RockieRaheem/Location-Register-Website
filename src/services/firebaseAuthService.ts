@@ -10,7 +10,7 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
-import { auth, db } from '../../firebase';
+import { auth, db } from '../config/firebase';
 
 export type ApplicationRole = 'admin' | 'country_admin' | 'contributor' | 'manufacturer' | 'financial_institution';
 

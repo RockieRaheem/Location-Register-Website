@@ -1,4 +1,4 @@
-import type { LocationHierarchySchema, LocationRecord } from '../../types';
+import type { LocationHierarchySchema, LocationRecord } from '../types';
 
 const API_BASE_URL = '/api/location-registry';
 

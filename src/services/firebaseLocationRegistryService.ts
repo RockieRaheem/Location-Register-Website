@@ -12,8 +12,8 @@ import {
   updateDoc,
   where,
 } from 'firebase/firestore';
-import { db } from '../../firebase';
-import type { LocationHierarchyLevel, LocationHierarchySchema, LocationRecord } from '../../types';
+import { db } from '../config/firebase';
+import type { LocationHierarchyLevel, LocationHierarchySchema, LocationRecord } from '../types';
 
 interface CountryDocument {
   uid: string;
