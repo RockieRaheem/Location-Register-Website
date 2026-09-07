@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createServer as createHttpServer } from 'node:http';
 import { allAfricanCountries } from '../data/mockData.ts';
 import type { AdminLevelName, Country, LocationRecord } from '../types.ts';
 import { LocationDatabase, type NewLocationInput } from './locationDatabase.ts';
@@ -50,6 +51,7 @@ function errorStatus(error: unknown): number {
 
 async function startServer() {
   const app = express();
+  const httpServer = createHttpServer(app);
   const port = Number(process.env.PORT || 3000);
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
@@ -320,7 +322,14 @@ async function startServer() {
 
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    app.use((_request, response, next) => {
+      response.setHeader('Cache-Control', 'no-store');
+      next();
+    });
+    const vite = await createViteServer({
+      server: { middlewareMode: true, hmr: { server: httpServer } },
+      appType: 'spa',
+    });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
@@ -328,7 +337,7 @@ async function startServer() {
     app.get('*all', (_request, response) => response.sendFile(path.join(distPath, 'index.html')));
   }
 
-  const server = app.listen(port, '0.0.0.0', () => {
+  const server = httpServer.listen(port, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${port}`);
     console.log(`Location database: ${databasePath}`);
   });
