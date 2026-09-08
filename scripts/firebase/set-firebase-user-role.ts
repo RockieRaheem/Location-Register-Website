@@ -21,7 +21,7 @@ const projectId = process.env.FIREBASE_PROJECT_ID || 'any-location-36e76';
 if (getApps().length === 0) initializeApp({ credential: applicationDefault(), projectId });
 const authentication = getAuth();
 const user = await authentication.getUserByEmail(email);
-await authentication.setCustomUserClaims(user.uid, { role, status: 'active', assignedCountryCodes: countries });
+await authentication.setCustomUserClaims(user.uid, { role, status: 'active', assignedCountryCodes: countries, assignedLocationReferenceCodes: [] });
 await getFirestore().doc(`users/${user.uid}`).set({
   uid: user.uid,
   email: user.email,
@@ -30,6 +30,7 @@ await getFirestore().doc(`users/${user.uid}`).set({
   role,
   status: 'active',
   assignedCountryCodes: countries,
+  assignedLocationReferenceCodes: [],
   updatedAt: FieldValue.serverTimestamp(),
 }, { merge: true });
 console.log(`Updated ${email}. The user must sign out and in again to refresh token claims.`);

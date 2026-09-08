@@ -4,6 +4,7 @@ const principal = (role: ApiRole, countries: string[] = []): ApiPrincipal => ({
   uid: `${role}-user`,
   role,
   assignedCountryCodes: countries,
+  assignedLocationReferenceCodes: [],
 });
 
 describe('API role permissions', () => {

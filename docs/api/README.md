@@ -24,6 +24,8 @@ Firestore location documents are read-only to client SDKs. All location mutation
 
 An account must be active and its Firebase email must be verified. Country assignments are ISO 3166-1 alpha-2 codes stored in the `assignedCountryCodes` custom claim. A user must sign in again or refresh their ID token after claims change.
 
+The owner can additionally assign up to ten immutable `assignedLocationReferenceCodes`. When present, these codes restrict reads to those exact locations and their descendant subtrees. This supports access such as “Kampala District only” or one particular sub-county without creating hardcoded endpoints or duplicating data.
+
 Set `FIREBASE_CHECK_REVOKED_TOKENS=true` on a trusted server with Application Default Credentials when immediate token revocation checks are required. The default still validates token issuer, audience, signature, expiry, email verification, status claim, and role without adding a paid Firebase dependency.
 
 Examples:
@@ -56,12 +58,25 @@ npm run firebase:set-role -- --email=manager@example.com --role=country_admin --
 | `GET` | `/api/v1/locations/{referenceCode}` | Read |
 | `GET` | `/api/v1/locations/{referenceCode}/ancestors` | Read |
 | `GET` | `/api/v1/locations/{referenceCode}/descendants` | Read |
+| `GET` | `/api/v1/locations/{referenceCode}/children` | Direct children in the assigned scope |
+| `GET` | `/api/v1/locations/{referenceCode}/subtree` | Paginated hierarchy rooted at any location |
+| `GET` | `/api/v1/locations/{referenceCode}/api` | Discoverable API description and links |
 | `GET` | `/api/v1/locations/{referenceCode}/geometry` | Read |
 | `PATCH` | `/api/v1/locations/{referenceCode}` | Contributor for country |
 | `POST` | `/api/v1/locations/{referenceCode}/move` | Country admin for country |
 | `DELETE` | `/api/v1/locations/{referenceCode}` | Country admin for country |
 
 List endpoints accept `level`, `parentReferenceCode`, `search`, `limit`, and `offset`. Creating a child uses `parentReferenceCode`; moving a location uses `parentReferenceCode`. External clients therefore never need to persist internal UUID relationships. The server caps a page at 1,000 records. Error responses use HTTP `401`, `403`, `404`, or `409` instead of silently returning unauthorized data.
+
+For example, after obtaining Kampala's immutable reference code, its dedicated API surface is:
+
+```text
+GET /api/v1/locations/{KAMPALA_REFERENCE_CODE}/api
+GET /api/v1/locations/{KAMPALA_REFERENCE_CODE}/children
+GET /api/v1/locations/{KAMPALA_REFERENCE_CODE}/subtree?maxDepth=4&limit=1000
+```
+
+The same templates work unchanged for every country and every configured hierarchy level.
 
 ```bash
 curl -H "Authorization: Bearer $FIREBASE_ID_TOKEN" \

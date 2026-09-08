@@ -9,6 +9,7 @@ export interface RegisteredUserAccess {
   disabled: boolean;
   role: ApplicationRole;
   assignedCountryCodes: string[];
+  assignedLocationReferenceCodes: string[];
   createdAt: string;
   lastSignInAt: string | null;
 }
@@ -25,8 +26,19 @@ async function ownerRequest<T>(url: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export async function getCurrentApiSession(): Promise<{ role: ApplicationRole; isOwner: boolean }> {
+export async function getCurrentApiSession(): Promise<{ role: ApplicationRole; isOwner: boolean; assignedLocationReferenceCodes: string[] }> {
   return ownerRequest('/api/v1/session');
+}
+
+export interface LocationApiDescriptor {
+  apiVersion: string;
+  scope: { referenceCode: string; name: string; countryCode: string; levelName: string };
+  description: string;
+  links: Record<string, string>;
+}
+
+export function getLocationApiDescriptor(referenceCode: string): Promise<LocationApiDescriptor> {
+  return ownerRequest(`/api/v1/locations/${encodeURIComponent(referenceCode)}/api`);
 }
 
 export async function listRegisteredUsers(): Promise<RegisteredUserAccess[]> {
@@ -36,7 +48,7 @@ export async function listRegisteredUsers(): Promise<RegisteredUserAccess[]> {
 
 export async function updateRegisteredUserAccess(
   uid: string,
-  input: { role: ApplicationRole; status: 'active' | 'disabled'; assignedCountryCodes: string[] },
+  input: { role: ApplicationRole; status: 'active' | 'disabled'; assignedCountryCodes: string[]; assignedLocationReferenceCodes: string[] },
 ): Promise<void> {
   await ownerRequest(`/api/v1/admin/users/${encodeURIComponent(uid)}/access`, {
     method: 'PATCH',

@@ -6,6 +6,7 @@ export interface ApiPrincipal {
   email?: string;
   role: ApiRole;
   assignedCountryCodes: string[];
+  assignedLocationReferenceCodes: string[];
 }
 
 export const apiRoles = new Set<ApiRole>(['admin', 'country_admin', 'contributor', 'developer', 'manufacturer', 'financial_institution']);

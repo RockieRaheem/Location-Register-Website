@@ -35,7 +35,10 @@ export const authenticateApiRequest: RequestHandler = async (request, response, 
     const assignedCountryCodes = Array.isArray(decoded.assignedCountryCodes)
       ? decoded.assignedCountryCodes.map(String).map((value) => value.toUpperCase()).filter((value) => /^[A-Z]{2}$/.test(value))
       : [];
-    principals.set(request, { uid: decoded.uid, email: decoded.email, role, assignedCountryCodes });
+    const assignedLocationReferenceCodes = Array.isArray(decoded.assignedLocationReferenceCodes)
+      ? decoded.assignedLocationReferenceCodes.map(String).map((value) => value.trim().toUpperCase()).filter(Boolean)
+      : [];
+    principals.set(request, { uid: decoded.uid, email: decoded.email, role, assignedCountryCodes, assignedLocationReferenceCodes });
     return next();
   } catch {
     return response.status(401).json({ code: 'INVALID_TOKEN', message: 'The Firebase ID token is invalid, expired, or revoked.' });

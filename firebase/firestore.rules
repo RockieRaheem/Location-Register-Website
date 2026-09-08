@@ -31,12 +31,13 @@ service cloud.firestore {
 
     function validUser(data, userId) {
       return data.keys().hasAll(['uid', 'email', 'name', 'role', 'status', 'assignedCountryCodes']) &&
-        data.keys().hasOnly(['uid', 'email', 'name', 'avatar', 'role', 'status', 'assignedCountryCodes', 'bio', 'gender', 'dateOfBirth', 'idType', 'idNumber', 'idDocument', 'selfie', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'name', 'avatar', 'role', 'status', 'assignedCountryCodes', 'assignedLocationReferenceCodes', 'bio', 'gender', 'dateOfBirth', 'idType', 'idNumber', 'idDocument', 'selfie', 'createdAt', 'updatedAt']) &&
         data.uid == userId && data.email is string && data.email.size() <= 254 &&
         data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
         (data.avatar == null || (data.avatar is string && data.avatar.size() <= 2000)) &&
         data.role in ['admin', 'country_admin', 'contributor', 'developer', 'manufacturer', 'financial_institution'] &&
-        data.status in ['active', 'disabled'] && data.assignedCountryCodes is list && data.assignedCountryCodes.size() <= 60;
+        data.status in ['active', 'disabled'] && data.assignedCountryCodes is list && data.assignedCountryCodes.size() <= 60 &&
+        (!data.keys().hasAny(['assignedLocationReferenceCodes']) || (data.assignedLocationReferenceCodes is list && data.assignedLocationReferenceCodes.size() <= 10));
     }
 
     function validCountry(data, countryCode) {

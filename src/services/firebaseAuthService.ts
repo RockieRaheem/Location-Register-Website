@@ -22,6 +22,7 @@ export interface FirebaseUserProfile {
   role: ApplicationRole;
   status: 'active' | 'disabled';
   assignedCountryCodes: string[];
+  assignedLocationReferenceCodes: string[];
 }
 
 const applicationRoles: ApplicationRole[] = ['admin', 'country_admin', 'contributor', 'developer', 'manufacturer', 'financial_institution'];
@@ -38,6 +39,7 @@ function profileFromAuthUser(user: FirebaseUser): FirebaseUserProfile {
     role: 'contributor',
     status: 'active',
     assignedCountryCodes: [],
+    assignedLocationReferenceCodes: [],
   };
 }
 

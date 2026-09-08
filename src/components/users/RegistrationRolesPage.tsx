@@ -57,6 +57,7 @@ const RegistrationRolesPage: React.FC<{ theme: Theme }> = ({ theme }) => {
         role: user.role,
         status: user.disabled ? 'disabled' : 'active',
         assignedCountryCodes: user.assignedCountryCodes,
+        assignedLocationReferenceCodes: user.assignedLocationReferenceCodes,
       });
       setNotice(`Access updated for ${user.email}. They must sign out and back in to receive the new role.`);
     } catch (saveError) {
@@ -100,7 +101,7 @@ const RegistrationRolesPage: React.FC<{ theme: Theme }> = ({ theme }) => {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-700/40 text-sm">
               <thead className={theme === 'dark' ? 'bg-slate-800/70' : 'bg-slate-50'}>
-                <tr>{['Registered user', 'Verified', 'Role', 'Country access', 'Status', ''].map((heading) => <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">{heading}</th>)}</tr>
+                <tr>{['Registered user', 'Verified', 'Role', 'Country access', 'API location scope', 'Status', ''].map((heading) => <th key={heading} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">{heading}</th>)}</tr>
               </thead>
               <tbody className="divide-y divide-slate-700/30">
                 {filteredUsers.map((user) => (
@@ -111,6 +112,15 @@ const RegistrationRolesPage: React.FC<{ theme: Theme }> = ({ theme }) => {
                       <select value={user.role} onChange={(event) => editUser(user.uid, { role: event.target.value as ApplicationRole, assignedCountryCodes: [] })} className={`rounded-lg border px-2 py-2 ${input}`}>
                         {roles.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
                       </select>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        value={user.assignedLocationReferenceCodes.join(', ')}
+                        onChange={(event) => editUser(user.uid, { assignedLocationReferenceCodes: event.target.value.split(',').map((code) => code.trim().toUpperCase()).filter(Boolean) })}
+                        placeholder="UG-L02-…"
+                        className={`w-44 rounded-lg border px-2 py-2 uppercase ${input}`}
+                        title="Optional comma-separated location reference codes. Each code grants read access only to that location and its descendants."
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <input
@@ -134,7 +144,7 @@ const RegistrationRolesPage: React.FC<{ theme: Theme }> = ({ theme }) => {
                     </td>
                   </tr>
                 ))}
-                {filteredUsers.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-slate-500">No registered users found.</td></tr>}
+                {filteredUsers.length === 0 && <tr><td colSpan={7} className="p-10 text-center text-slate-500">No registered users found.</td></tr>}
               </tbody>
             </table>
           </div>

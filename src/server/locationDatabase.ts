@@ -548,6 +548,18 @@ export class LocationDatabase {
     `).all(uid) as SqlRow[]).map((row) => this.rowToLocation(row));
   }
 
+  isWithinAnyScope(locationUid: string, scopeReferenceCodes: string[]): boolean {
+    if (scopeReferenceCodes.length === 0) return true;
+    const placeholders = scopeReferenceCodes.map(() => '?').join(', ');
+    return Boolean(this.db.prepare(`
+      SELECT 1
+      FROM location_paths path
+      JOIN locations scope ON scope.uid = path.ancestor_uid
+      WHERE path.descendant_uid = ? AND upper(scope.reference_code) IN (${placeholders})
+      LIMIT 1
+    `).get(locationUid, ...scopeReferenceCodes.map((code) => code.trim().toUpperCase())));
+  }
+
   getDescendants(uid: string, maxDepth?: number, limit = 1000, offset = 0): { items: LocationRecord[]; total: number } {
     const depthClause = maxDepth == null ? '' : 'AND path.depth <= ?';
     const params: SQLInputValue[] = maxDepth == null ? [uid] : [uid, maxDepth];

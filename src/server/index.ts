@@ -84,6 +84,7 @@ async function startServer() {
           disabled: account.disabled,
           role: String(account.customClaims?.role || 'contributor'),
           assignedCountryCodes: Array.isArray(account.customClaims?.assignedCountryCodes) ? account.customClaims.assignedCountryCodes : [],
+          assignedLocationReferenceCodes: Array.isArray(account.customClaims?.assignedLocationReferenceCodes) ? account.customClaims.assignedLocationReferenceCodes : [],
           createdAt: account.metadata.creationTime,
           lastSignInAt: account.metadata.lastSignInTime || null,
         })),
@@ -101,15 +102,21 @@ async function startServer() {
       const assignedCountryCodes = Array.isArray(request.body.assignedCountryCodes)
         ? [...new Set(request.body.assignedCountryCodes.map(String).map((code: string) => code.trim().toUpperCase()).filter((code: string) => /^[A-Z]{2}$/.test(code)))]
         : [];
+      const assignedLocationReferenceCodes: string[] = Array.isArray(request.body.assignedLocationReferenceCodes)
+        ? [...new Set<string>(request.body.assignedLocationReferenceCodes.map((value: unknown) => String(value).trim().toUpperCase()).filter(Boolean))]
+        : [];
       if (!apiRoles.has(role)) return response.status(400).json({ message: 'Select a valid application role.' });
       if (!['country_admin', 'contributor'].includes(role) && assignedCountryCodes.length > 0) {
         return response.status(400).json({ message: 'Country assignments apply only to country administrators and contributors.' });
       }
+      if (assignedLocationReferenceCodes.length > 10) return response.status(400).json({ message: 'Assign at most 10 location scope roots to one account.' });
+      const invalidScope = assignedLocationReferenceCodes.find((code) => !locationDatabase.getLocationByReferenceCode(code));
+      if (invalidScope) return response.status(400).json({ message: `Location scope reference not found: ${invalidScope}` });
       const account = await getAuth().getUser(routeParam(request, 'uid'));
       if (account.email && (process.env.OWNER_EMAILS || '').split(',').map((email) => email.trim().toLowerCase()).includes(account.email.toLowerCase())) {
         return response.status(409).json({ message: 'The configured owner account cannot be modified from this screen.' });
       }
-      await getAuth().setCustomUserClaims(account.uid, { role, status, assignedCountryCodes });
+      await getAuth().setCustomUserClaims(account.uid, { role, status, assignedCountryCodes, assignedLocationReferenceCodes });
       await getAuth().updateUser(account.uid, { disabled: status === 'disabled' });
       await getFirestore().doc(`users/${account.uid}`).set({
         uid: account.uid,
@@ -119,9 +126,10 @@ async function startServer() {
         role,
         status,
         assignedCountryCodes,
+        assignedLocationReferenceCodes,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      return response.json({ uid: account.uid, role, status, assignedCountryCodes });
+      return response.json({ uid: account.uid, role, status, assignedCountryCodes, assignedLocationReferenceCodes });
     } catch (error) {
       console.error('Unable to update Firebase user access', error);
       return response.status(500).json({ message: 'Unable to update this user. Check the server Firebase Admin credentials.' });
@@ -130,6 +138,27 @@ async function startServer() {
 
   const countryFromLocation = (request: express.Request) => locationDatabase.getLocation(routeParam(request, 'uid'))?.countryCode;
   const countryFromReference = (request: express.Request) => locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'))?.countryCode;
+  const canReadLocation = (request: express.Request, location: LocationRecord) => {
+    const principal = apiPrincipal(request);
+    return principal.role === 'admin'
+      || principal.assignedCountryCodes.includes(location.countryCode)
+      || locationDatabase.isWithinAnyScope(location.uid, principal.assignedLocationReferenceCodes);
+  };
+  const authorizeLocationRead: express.RequestHandler = (request, response, next) => {
+    const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
+    if (!location) return response.status(404).json({ message: 'Location reference not found' });
+    if (!canReadLocation(request, location)) {
+      return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the requested location subtree.' });
+    }
+    return next();
+  };
+  const locationLinks = (referenceCode: string) => ({
+    self: `/api/v1/locations/${referenceCode}`,
+    children: `/api/v1/locations/${referenceCode}/children`,
+    subtree: `/api/v1/locations/${referenceCode}/subtree`,
+    ancestors: `/api/v1/locations/${referenceCode}/ancestors`,
+    geometry: `/api/v1/locations/${referenceCode}/geometry`,
+  });
 
   // Stable, versioned integration API. Reference codes are immutable public identifiers;
   // UUID routes below remain available to the first-party application.
@@ -158,6 +187,10 @@ async function startServer() {
       const parent = parentReferenceCode ? locationDatabase.getLocationByReferenceCode(parentReferenceCode) : undefined;
       if (parentReferenceCode && (!parent || parent.countryCode !== routeParam(request, 'countryCode').toUpperCase())) {
         return response.status(404).json({ message: 'Parent location reference not found in this country' });
+      }
+      const principal = apiPrincipal(request);
+      if (principal.assignedLocationReferenceCodes.length > 0 && (!parent || !canReadLocation(request, parent))) {
+        return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'Use an assigned location reference as parentReferenceCode.' });
       }
       const page = locationDatabase.listLocations(routeParam(request, 'countryCode'), {
         parentUid: parent?.uid,
@@ -188,17 +221,17 @@ async function startServer() {
     }
   });
 
-  app.get('/api/v1/locations/:referenceCode', (request, response) => {
+  app.get('/api/v1/locations/:referenceCode', authorizeLocationRead, (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
-    return location ? response.json(location) : response.status(404).json({ message: 'Location reference not found' });
+    return response.json({ ...location, links: locationLinks(routeParam(request, 'referenceCode')) });
   });
 
-  app.get('/api/v1/locations/:referenceCode/ancestors', (request, response) => {
+  app.get('/api/v1/locations/:referenceCode/ancestors', authorizeLocationRead, (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
     return location ? response.json({ items: locationDatabase.getAncestors(location.uid) }) : response.status(404).json({ message: 'Location reference not found' });
   });
 
-  app.get('/api/v1/locations/:referenceCode/descendants', (request, response) => {
+  app.get('/api/v1/locations/:referenceCode/descendants', authorizeLocationRead, (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
     if (!location) return response.status(404).json({ message: 'Location reference not found' });
     return response.json(locationDatabase.getDescendants(
@@ -209,7 +242,38 @@ async function startServer() {
     ));
   });
 
-  app.get('/api/v1/locations/:referenceCode/geometry', (request, response) => {
+  app.get('/api/v1/locations/:referenceCode/children', authorizeLocationRead, (request, response) => {
+    const referenceCode = routeParam(request, 'referenceCode');
+    const location = locationDatabase.getLocationByReferenceCode(referenceCode) as LocationRecord;
+    const page = locationDatabase.getDescendants(location.uid, 1, integerQuery(request.query.limit, 100), integerQuery(request.query.offset, 0));
+    return response.json({ root: location, ...page, links: locationLinks(referenceCode), apiVersion: 'v1' });
+  });
+
+  app.get('/api/v1/locations/:referenceCode/subtree', authorizeLocationRead, (request, response) => {
+    const referenceCode = routeParam(request, 'referenceCode');
+    const location = locationDatabase.getLocationByReferenceCode(referenceCode) as LocationRecord;
+    const page = locationDatabase.getDescendants(
+      location.uid,
+      integerQuery(request.query.maxDepth),
+      integerQuery(request.query.limit, 1000),
+      integerQuery(request.query.offset, 0),
+    );
+    return response.json({ root: location, ...page, links: locationLinks(referenceCode), apiVersion: 'v1' });
+  });
+
+  app.get('/api/v1/locations/:referenceCode/api', authorizeLocationRead, (request, response) => {
+    const referenceCode = routeParam(request, 'referenceCode');
+    const location = locationDatabase.getLocationByReferenceCode(referenceCode) as LocationRecord;
+    return response.json({
+      apiVersion: 'v1',
+      scope: location,
+      description: `Hierarchical API rooted at ${location.name} (${location.levelName}).`,
+      links: locationLinks(referenceCode),
+      query: { children: ['limit', 'offset'], subtree: ['maxDepth', 'limit', 'offset'] },
+    });
+  });
+
+  app.get('/api/v1/locations/:referenceCode/geometry', authorizeLocationRead, (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
     if (!location) return response.status(404).json({ message: 'Location reference not found' });
     const geometry = locationDatabase.getGeometry(location.uid);
