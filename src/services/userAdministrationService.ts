@@ -30,6 +30,12 @@ export async function getCurrentApiSession(): Promise<{ role: ApplicationRole; i
   return ownerRequest('/api/v1/session');
 }
 
+export async function getCurrentFirebaseIdToken(forceRefresh = false): Promise<string> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('Sign in before requesting an API token.');
+  return user.getIdToken(forceRefresh);
+}
+
 export interface LocationApiDescriptor {
   apiVersion: string;
   scope: { referenceCode: string; name: string; countryCode: string; levelName: string };

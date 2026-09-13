@@ -11,6 +11,7 @@ import type { AdminLevelName, Country, LocationRecord } from '../types.ts';
 import { LocationDatabase, type NewLocationInput } from './locationDatabase.ts';
 import { apiPrincipal, authenticateApiRequest, authorize, authorizeOwner, isOwnerRequest } from './apiAuth.ts';
 import { apiRoles, type ApiRole } from './apiPolicy.ts';
+import { locationApiOpenApi } from './openApi.ts';
 
 try {
   loadEnvFile(path.join(process.cwd(), '.env.local'));
@@ -71,6 +72,8 @@ async function startServer() {
     const principal = apiPrincipal(request);
     return response.json({ ...principal, isOwner: isOwnerRequest(request) });
   });
+
+  app.get('/api/v1/openapi.json', (_request, response) => response.json(locationApiOpenApi));
 
   app.get('/api/v1/admin/users', authorizeOwner, async (_request, response) => {
     try {

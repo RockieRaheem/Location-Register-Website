@@ -1,5 +1,7 @@
 # Location API v1
 
+The signed-in dashboard includes a dedicated **API Access** developer portal with live scope discovery, token generation, endpoint URLs, cURL/JavaScript/Python examples, pagination guidance, and error documentation. The same contract is available to tools at `GET /api/v1/openapi.json` as OpenAPI 3.1 JSON.
+
 ## Authentication
 
 All `/api` routes require a verified Firebase user and a short-lived Firebase ID token:
@@ -51,6 +53,7 @@ npm run firebase:set-role -- --email=manager@example.com --role=country_admin --
 | Method | Endpoint | Minimum permission |
 | --- | --- | --- |
 | `GET` | `/api/v1/countries` | Read |
+| `GET` | `/api/v1/openapi.json` | Authenticated OpenAPI 3.1 contract |
 | `GET` | `/api/v1/countries/{countryCode}/schema` | Read |
 | `PUT` | `/api/v1/countries/{countryCode}/schema` | Country admin for country |
 | `GET` | `/api/v1/countries/{countryCode}/locations` | Read |
