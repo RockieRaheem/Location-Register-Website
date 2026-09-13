@@ -128,14 +128,18 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
       </div>
       
       <nav className={`flex-1 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-2 ${isCollapsed ? '' : 'pr-2'}`}>
+        {(isDeveloper || isSuperAdmin) && (
+          <>
+            <SectionTitle theme={theme} isCollapsed={isCollapsed}>Developers</SectionTitle>
+            <NavLink isCollapsed={isCollapsed} theme={theme} icon="api" label="Developer API" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />
+          </>
+        )}
+
         {/* LOCATION DATA MENU */}
         {isLocationExplorer && (
              <>
                 <SectionTitle theme={theme} isCollapsed={isCollapsed}>Location Data</SectionTitle>
                 <NavLink isCollapsed={isCollapsed} theme={theme} icon="globe" label="Location Explorer" active={activeView === 'countries-map'} onClick={() => onNavigate('countries-map')} />
-                {isDeveloper && (
-                  <NavLink isCollapsed={isCollapsed} theme={theme} icon="system-settings" label="API Access" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />
-                )}
                 <SectionTitle theme={theme} isCollapsed={isCollapsed}>Account</SectionTitle>
                 <NavLink isCollapsed={isCollapsed} theme={theme} icon="user-circle" label={t('sidebar.myProfile', 'My profile')} active={activeView === 'profile'} onClick={() => onNavigate('profile')} />
                 <NavLink isCollapsed={isCollapsed} theme={theme} icon="system-settings" label={t('sidebar.accountSettings', 'Account settings')} active={activeView === 'settings'} onClick={() => onNavigate('settings')} />
@@ -288,7 +292,6 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
                       <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isSystemSettingsMenuOpen && !isCollapsed ? 'max-h-60' : 'max-h-0'}`}>
                           <div className={`pt-1 space-y-1 ${isCollapsed ? 'hidden' : 'pl-4'}`}>
                               
-                              {isSuperAdmin && <NavLink isCollapsed={isCollapsed} theme={theme} icon="api" label="API Settings" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />}
                               {isSuperAdmin && <NavLink isCollapsed={isCollapsed} theme={theme} icon="lock" label="Message Settings" active={activeView === 'system-message-settings'} onClick={() => onNavigate('system-message-settings')} />}
                               <NavLink isCollapsed={isCollapsed} theme={theme} icon="phone" label="Call Settings" active={activeView === 'settings-calls'} onClick={() => onNavigate('settings-calls')} />
                           </div>

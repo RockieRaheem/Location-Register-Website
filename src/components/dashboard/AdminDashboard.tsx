@@ -98,7 +98,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'C
         const session = await getCurrentApiSession().catch(() => null);
         const resolvedRole = session?.isOwner ? 'Administrator' : roleMap[profile.role];
         setDashboardRole(resolvedRole);
-        setActiveView(['Contributor', 'Developer'].includes(resolvedRole) ? 'countries-map' : 'dashboard');
+        setActiveView(resolvedRole === 'Developer' ? 'settings-api' : resolvedRole === 'Contributor' ? 'countries-map' : 'dashboard');
         setUser((current) => ({
           ...current,
           id: profile.uid,
