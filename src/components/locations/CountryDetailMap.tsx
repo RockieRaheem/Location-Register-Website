@@ -365,9 +365,16 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
 
   const handleRegionClick = (pathName: string) => {
     if (countryId === 'UG') {
-      // In Uganda, clicking any district immediately opens that district's individual map
       const sourceDistrict = getElectoralCommissionDistrict(pathName);
-      if (sourceDistrict) handleSelectDistrict(pathName);
+      if (sourceDistrict) {
+        handleSelectDistrict(pathName);
+        setModalConfig({
+          countryId: 'UG',
+          countryName: 'Uganda',
+          initialLevel: 'subcounties',
+          initialDistrict: pathName,
+        });
+      }
     } else if (countryId === 'TZ' && pathName === 'Dar es Salaam') {
       setDrillDownDistrict('Dar es Salaam');
       handleReset();
@@ -1276,6 +1283,10 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
           initialDistrict={modalConfig.initialDistrict}
           initialSubcounty={modalConfig.initialSubcounty}
           onClose={() => setModalConfig(null)}
+          onHome={() => {
+            setModalConfig(null);
+            onBack();
+          }}
         />
       )}
       {showProfileModal && (

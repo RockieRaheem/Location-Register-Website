@@ -281,6 +281,7 @@ interface CountryMapModalProps {
   countryName: string;
   theme: Theme;
   onClose: () => void;
+  onHome?: () => void;
   initialLevel?: AdminLevel;
   initialRegion?: string | null;
   initialDistrict?: string | null;
@@ -301,6 +302,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
   countryName, 
   theme, 
   onClose,
+  onHome,
   initialLevel,
   initialRegion,
   initialDistrict,
@@ -957,6 +959,17 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                 {isFullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               </button>
               <button
+                onClick={onHome || onClose}
+                className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
+                  theme === 'dark' ? 'border-slate-800 hover:bg-slate-900 text-slate-400 hover:text-slate-100' : 'border-slate-200 hover:bg-slate-100 text-slate-600 hover:text-slate-900'
+                }`}
+                title="Return to the Africa map"
+              >
+                <Home size={14} />
+                <span className="hidden sm:inline">Africa map</span>
+              </button>
+
+              <button
                 onClick={handleBack}
                 className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
                   theme === 'dark' 
@@ -1092,9 +1105,9 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
               <div className="p-3.5 bg-yellow-500/10 border-b border-yellow-500/10 text-[11px] leading-relaxed text-yellow-600 font-semibold flex gap-2">
                 <Compass className="w-4 h-4 text-yellow-500 shrink-0" />
                 <span>
-                  {currentLevel === 'regions' && "🎯 Click any Region path or name to view local Districts."}
-                  {currentLevel === 'districts' && "🎯 Click any District to explore Sub-Counties & Town Councils."}
-                  {currentLevel === 'subcounties' && "🎯 Click any Sub-County or Division to view Parishes & Wards."}
+                  {currentLevel === 'regions' && "Select a region to view its districts and cities."}
+                  {currentLevel === 'districts' && "Select a district or city to view its sub-counties and divisions."}
+                  {currentLevel === 'subcounties' && "Select a sub-county or division to view its parishes and wards."}
                   {currentLevel === 'parishes' && (countryId === 'UG'
                     ? "Click any Electoral Commission parish or ward to list its village paths."
                     : "Click any Parish to explore its villages.")}
@@ -1163,18 +1176,14 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                         }}
                         className={`w-full text-left px-3 py-2 rounded-xl border text-xs font-bold transition-all duration-150 cursor-pointer flex items-center justify-between ${
                           isSelected
-                            ? 'bg-yellow-500/15 border-yellow-500 text-yellow-600'
+                            ? theme === 'dark' ? 'bg-slate-800 border-slate-600 text-white' : 'bg-slate-100 border-slate-300 text-slate-950'
                             : isHovered
                             ? theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-100' : 'bg-slate-50 border-slate-300 text-slate-900 shadow-xs'
                             : theme === 'dark' ? 'bg-slate-900/40 border-slate-900 text-slate-400' : 'bg-slate-100/50 border-slate-200 text-slate-600'
                         }`}
                       >
                         <div className="flex items-center gap-2 min-w-0">
-                          {currentLevel === 'regions' && <Map className="w-3.5 h-3.5 opacity-60 text-indigo-400 shrink-0" />}
-                          {currentLevel === 'districts' && <Building2 className="w-3.5 h-3.5 opacity-60 text-emerald-400 shrink-0" />}
-                          {currentLevel === 'subcounties' && <Compass className="w-3.5 h-3.5 opacity-60 text-sky-400 shrink-0" />}
-                          {currentLevel === 'parishes' && <Award className="w-3.5 h-3.5 opacity-60 text-yellow-500 shrink-0" />}
-                          {currentLevel === 'villages' && <MapPin className="w-3.5 h-3.5 opacity-60 text-red-400 shrink-0" />}
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                           <span className="truncate">{entity.name}</span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">

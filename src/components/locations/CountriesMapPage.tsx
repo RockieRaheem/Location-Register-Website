@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Theme, Shop, RegionalEconomicLevel, Country } from '../../types';
 import AfricaMap from './AfricaMap';
 import CountryDetailMap from './CountryDetailMap';
-import CountryMapModal from './CountryMapModal';
+import { UGANDA_ELECTORAL_COMMISSION_2022_METADATA } from '../../data/locations/ugandaElectoralCommission2022';
 
 interface CountriesMapPageProps {
     theme: Theme;
@@ -13,7 +13,9 @@ interface CountriesMapPageProps {
 
 const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regionalLevels, countries }) => {
     const [selectedCountryId, setSelectedCountryId] = useState<string | null>(null);
-    const [doubleClickedCountry, setDoubleClickedCountry] = useState<{ id: string; name: string } | null>(null);
+    const locationCounts = useMemo(() => ({
+        UG: UGANDA_ELECTORAL_COMMISSION_2022_METADATA.statistics.uniqueFullVillagePaths,
+    }), []);
 
     const shopDensity = useMemo(() => {
         const density: Record<string, number> = {};
@@ -41,20 +43,11 @@ const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regio
                         regionalLevels={regionalLevels}
                         theme={theme}
                         countries={countries}
+                        locationCounts={locationCounts}
                         onCountryClick={(id) => setSelectedCountryId(id)}
-                        onCountryDoubleClick={(id, name) => setDoubleClickedCountry({ id, name })}
                     />
                 )}
             </div>
-
-            {doubleClickedCountry && (
-                <CountryMapModal
-                    countryId={doubleClickedCountry.id}
-                    countryName={doubleClickedCountry.name}
-                    theme={theme}
-                    onClose={() => setDoubleClickedCountry(null)}
-                />
-            )}
         </div>
     );
 };

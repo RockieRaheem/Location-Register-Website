@@ -14,7 +14,9 @@ interface AfricaMapProps {
   theme: Theme;
   countries?: Country[];
   onCountryClick?: (countryId: string, countryName: string) => void;
+  /** @deprecated Countries now open immediately with a single click. */
   onCountryDoubleClick?: (countryId: string, countryName: string) => void;
+  locationCounts?: Record<string, number>;
 }
 
 // Cartographically calibrated label configurations for all African territories
@@ -126,34 +128,15 @@ function computePathCenter(d: string): { x: number; y: number } {
   return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
 }
 
-const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevels, theme, countries, onCountryClick, onCountryDoubleClick }) => {
+const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevels, theme, countries, onCountryClick, locationCounts = {} }) => {
   const [hoveredCountry, setHoveredCountry] = useState<{ id: string, name: string, density: number, color?: string } | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
   const [profileModalCountry, setProfileModalCountry] = useState<{ id: string; name: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isExpanded, setIsExpanded] = useState(false);
-  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (clickTimeoutRef.current) {
-        clearTimeout(clickTimeoutRef.current);
-      }
-    };
-  }, []);
-
   const handleCountryInteraction = (id: string, name: string) => {
-    if (clickTimeoutRef.current) {
-      clearTimeout(clickTimeoutRef.current);
-      clickTimeoutRef.current = null;
-      onCountryDoubleClick?.(id, name);
-    } else {
-      clickTimeoutRef.current = setTimeout(() => {
-        onCountryClick?.(id, name);
-        clickTimeoutRef.current = null;
-      }, 250);
-    }
+    onCountryClick?.(id, name);
   };
 
 
@@ -460,10 +443,6 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
                                 const normalizedId = countryId.split('-')[0];
                                 handleCountryInteraction(normalizedId, country.name);
                               }}
-                              onDoubleClick={() => {
-                                const normalizedId = countryId.split('-')[0];
-                                handleCountryInteraction(normalizedId, country.name);
-                              }}
                               className="cursor-pointer outline-none"
                               style={{ transformOrigin: 'center', transformBox: 'fill-box' }}
                             />
@@ -508,10 +487,6 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
                               onMouseEnter={() => setHoveredCountry({ id: country.id, name: country.name, density, color: baseColor })}
                               onMouseLeave={() => setHoveredCountry(null)}
                               onClick={() => {
-                                const normalizedId = countryId.split('-')[0];
-                                handleCountryInteraction(normalizedId, country.name);
-                              }}
-                              onDoubleClick={() => {
                                 const normalizedId = countryId.split('-')[0];
                                 handleCountryInteraction(normalizedId, country.name);
                               }}
@@ -647,8 +622,8 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
               )}
 
               <div className="flex items-baseline space-x-1">
-                <span className="text-lg font-black">{hoveredCountry.density}</span>
-                <span className="text-[10px] uppercase font-bold opacity-60">Villages Mapped</span>
+                <span className="text-lg font-black">{(locationCounts[hoveredCountry.id.split('-')[0]] ?? hoveredCountry.density).toLocaleString()}</span>
+                <span className="text-[10px] uppercase font-bold opacity-60">{locationCounts[hoveredCountry.id.split('-')[0]] != null ? 'Villages available' : 'Mapped shops'}</span>
               </div>
 
               <div className="flex items-center space-x-1.5 pt-1.5 mt-1 border-t border-slate-200/50 dark:border-slate-700/50 text-[10px] text-yellow-500 font-bold">
