@@ -508,7 +508,7 @@ export class LocationDatabase {
       clauses.push('location.parent_uid = ?');
       parameters.push(options.parentUid);
     }
-    if (options.levelOrder) {
+    if (options.levelOrder != null) {
       clauses.push('location.depth = ?');
       parameters.push(options.levelOrder);
     }
@@ -560,13 +560,15 @@ export class LocationDatabase {
     `).get(locationUid, ...scopeReferenceCodes.map((code) => code.trim().toUpperCase())));
   }
 
-  getDescendants(uid: string, maxDepth?: number, limit = 1000, offset = 0): { items: LocationRecord[]; total: number } {
+  getDescendants(uid: string, maxDepth?: number, limit = 1000, offset = 0): { items: LocationRecord[]; total: number; limit: number; offset: number } {
     const depthClause = maxDepth == null ? '' : 'AND path.depth <= ?';
     const params: SQLInputValue[] = maxDepth == null ? [uid] : [uid, maxDepth];
     const total = Number((this.db.prepare(`
       SELECT COUNT(*) AS count FROM location_paths path
       WHERE path.ancestor_uid = ? AND path.depth > 0 ${depthClause}
     `).get(...params) as SqlRow).count);
+    const pageLimit = clampLimit(limit);
+    const pageOffset = Math.max(offset, 0);
     const rows = this.db.prepare(`
       SELECT location.*, country.iso2, level.level_order, level.level_key, level.name AS level_name
       FROM location_paths path
@@ -576,8 +578,8 @@ export class LocationDatabase {
       WHERE path.ancestor_uid = ? AND path.depth > 0 ${depthClause}
       ORDER BY location.depth, location.name
       LIMIT ? OFFSET ?
-    `).all(...params, clampLimit(limit), Math.max(offset, 0)) as SqlRow[];
-    return { items: rows.map((row) => this.rowToLocation(row)), total };
+    `).all(...params, pageLimit, pageOffset) as SqlRow[];
+    return { items: rows.map((row) => this.rowToLocation(row)), total, limit: pageLimit, offset: pageOffset };
   }
 
   updateLocation(uid: string, patch: Partial<Pick<LocationRecord, 'name' | 'type' | 'status' | 'metadata'>>, actor = 'api'): LocationRecord {

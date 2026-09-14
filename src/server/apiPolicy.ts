@@ -19,3 +19,23 @@ export function hasApiPermission(principal: ApiPrincipal, permission: ApiPermiss
   if (permission === 'manage_country') return principal.role === 'country_admin' && assigned;
   return (principal.role === 'country_admin' || principal.role === 'contributor') && assigned;
 }
+
+export function hasCountryWideRead(principal: ApiPrincipal, countryCode: string): boolean {
+  if (principal.role === 'admin') return true;
+  if (principal.assignedLocationReferenceCodes.length > 0) return false;
+  return principal.assignedCountryCodes.length === 0
+    || principal.assignedCountryCodes.includes(countryCode.toUpperCase());
+}
+
+export function canReadLocation(
+  principal: ApiPrincipal,
+  location: Pick<{ uid: string; countryCode: string }, 'uid' | 'countryCode'>,
+  isWithinAssignedScope: (locationUid: string, references: string[]) => boolean,
+): boolean {
+  if (principal.role === 'admin') return true;
+  if (principal.assignedLocationReferenceCodes.length > 0) {
+    return isWithinAssignedScope(location.uid, principal.assignedLocationReferenceCodes);
+  }
+  return principal.assignedCountryCodes.length === 0
+    || principal.assignedCountryCodes.includes(location.countryCode.toUpperCase());
+}

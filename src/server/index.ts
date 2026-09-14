@@ -10,7 +10,7 @@ import { allAfricanCountries } from '../data/mockData.ts';
 import type { AdminLevelName, Country, LocationRecord } from '../types.ts';
 import { LocationDatabase, type NewLocationInput } from './locationDatabase.ts';
 import { apiPrincipal, authenticateApiRequest, authorize, authorizeOwner, isOwnerRequest } from './apiAuth.ts';
-import { apiRoles, type ApiRole } from './apiPolicy.ts';
+import { apiRoles, canReadLocation as canPrincipalReadLocation, hasCountryWideRead as principalHasCountryWideRead, type ApiRole } from './apiPolicy.ts';
 import { locationApiOpenApi } from './openApi.ts';
 
 try {
@@ -143,9 +143,16 @@ async function startServer() {
   const countryFromReference = (request: express.Request) => locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'))?.countryCode;
   const canReadLocation = (request: express.Request, location: LocationRecord) => {
     const principal = apiPrincipal(request);
-    return principal.role === 'admin'
-      || principal.assignedCountryCodes.includes(location.countryCode)
-      || locationDatabase.isWithinAnyScope(location.uid, principal.assignedLocationReferenceCodes);
+    return canPrincipalReadLocation(principal, location, (uid, references) => locationDatabase.isWithinAnyScope(uid, references));
+  };
+  const hasCountryWideRead = (request: express.Request, countryCode: string) => principalHasCountryWideRead(apiPrincipal(request), countryCode);
+  const canReadCountry = (request: express.Request, countryCode: string) => hasCountryWideRead(request, countryCode)
+    || apiPrincipal(request).assignedLocationReferenceCodes.some((referenceCode) =>
+      locationDatabase.getLocationByReferenceCode(referenceCode)?.countryCode === countryCode.toUpperCase());
+  const requireCountryRead = (request: express.Request, response: express.Response): boolean => {
+    if (canReadCountry(request, routeParam(request, 'countryCode'))) return true;
+    response.status(403).json({ code: 'COUNTRY_SCOPE_REQUIRED', message: 'This account is not assigned to the requested country.' });
+    return false;
   };
   const authorizeLocationRead: express.RequestHandler = (request, response, next) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
@@ -165,10 +172,13 @@ async function startServer() {
 
   // Stable, versioned integration API. Reference codes are immutable public identifiers;
   // UUID routes below remain available to the first-party application.
-  app.get('/api/v1/countries', (_request, response) => response.json({ items: locationDatabase.getCountries() }));
+  app.get('/api/v1/countries', (request, response) => response.json({
+    items: locationDatabase.getCountries().filter((country) => canReadCountry(request, country.countryCode)),
+  }));
 
   app.get('/api/v1/countries/:countryCode/schema', (request, response) => {
     try {
+      if (!requireCountryRead(request, response)) return;
       return response.json(locationDatabase.getHierarchy(routeParam(request, 'countryCode')));
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to load hierarchy' });
@@ -186,13 +196,13 @@ async function startServer() {
 
   app.get('/api/v1/countries/:countryCode/locations', (request, response) => {
     try {
+      if (!requireCountryRead(request, response)) return;
       const parentReferenceCode = request.query.parentReferenceCode?.toString();
       const parent = parentReferenceCode ? locationDatabase.getLocationByReferenceCode(parentReferenceCode) : undefined;
       if (parentReferenceCode && (!parent || parent.countryCode !== routeParam(request, 'countryCode').toUpperCase())) {
         return response.status(404).json({ message: 'Parent location reference not found in this country' });
       }
-      const principal = apiPrincipal(request);
-      if (principal.assignedLocationReferenceCodes.length > 0 && (!parent || !canReadLocation(request, parent))) {
+      if (!hasCountryWideRead(request, routeParam(request, 'countryCode')) && (!parent || !canReadLocation(request, parent))) {
         return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'Use an assigned location reference as parentReferenceCode.' });
       }
       const page = locationDatabase.listLocations(routeParam(request, 'countryCode'), {
@@ -318,10 +328,13 @@ async function startServer() {
 
   // Compatibility endpoints: existing screens still receive numeric local IDs,
   // plus canonical UUIDs projected from the normalized location tables.
-  app.get('/api/countries', (_request, response) => response.json(locationDatabase.getCountries()));
+  app.get('/api/countries', (request, response) => response.json(
+    locationDatabase.getCountries().filter((country) => canReadCountry(request, country.countryCode)),
+  ));
 
   app.get('/api/countries/:id', (request, response) => {
     const country = locationDatabase.getCountryByLegacyId(Number.parseInt(routeParam(request, 'id'), 10));
+    if (country && !canReadCountry(request, country.countryCode)) return response.status(403).json({ code: 'COUNTRY_SCOPE_REQUIRED', message: 'This account is not assigned to the requested country.' });
     return country ? response.json(country) : response.status(404).json({ message: 'Country not found' });
   });
 
@@ -363,6 +376,7 @@ async function startServer() {
 
   app.get('/api/location-registry/countries/:countryCode/schema', (request, response) => {
     try {
+      if (!requireCountryRead(request, response)) return;
       return response.json(locationDatabase.getHierarchy(routeParam(request, 'countryCode')));
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to load hierarchy' });
@@ -381,8 +395,14 @@ async function startServer() {
 
   app.get('/api/location-registry/countries/:countryCode/locations', (request, response) => {
     try {
+      if (!requireCountryRead(request, response)) return;
+      const parentUid = request.query.parentUid?.toString();
+      const parent = parentUid ? locationDatabase.getLocation(parentUid) : null;
+      if (!hasCountryWideRead(request, routeParam(request, 'countryCode')) && (!parent || !canReadLocation(request, parent))) {
+        return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'Use an assigned location as parentUid.' });
+      }
       return response.json(locationDatabase.listLocations(routeParam(request, 'countryCode'), {
-        parentUid: request.query.parentUid?.toString(),
+        parentUid,
         levelOrder: integerQuery(request.query.level),
         search: request.query.search?.toString(),
         limit: integerQuery(request.query.limit, 100),
@@ -395,27 +415,35 @@ async function startServer() {
 
   app.get('/api/location-registry/locations/:uid', (request, response) => {
     const location = locationDatabase.getLocation(routeParam(request, 'uid'));
+    if (location && !canReadLocation(request, location)) return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the requested location subtree.' });
     return location ? response.json(location) : response.status(404).json({ message: 'Location not found' });
   });
 
   app.get('/api/location-registry/references/:referenceCode', (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
+    if (location && !canReadLocation(request, location)) return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the requested location subtree.' });
     return location ? response.json(location) : response.status(404).json({ message: 'Location reference not found' });
   });
 
   app.get('/api/location-registry/locations/:uid/ancestors', (request, response) => {
-    if (!locationDatabase.getLocation(routeParam(request, 'uid'))) return response.status(404).json({ message: 'Location not found' });
+    const location = locationDatabase.getLocation(routeParam(request, 'uid'));
+    if (!location) return response.status(404).json({ message: 'Location not found' });
+    if (!canReadLocation(request, location)) return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the requested location subtree.' });
     return response.json(locationDatabase.getAncestors(routeParam(request, 'uid')));
   });
 
   app.get('/api/location-registry/locations/:uid/geometry', (request, response) => {
-    if (!locationDatabase.getLocation(routeParam(request, 'uid'))) return response.status(404).json({ message: 'Location not found' });
+    const location = locationDatabase.getLocation(routeParam(request, 'uid'));
+    if (!location) return response.status(404).json({ message: 'Location not found' });
+    if (!canReadLocation(request, location)) return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the requested location subtree.' });
     const geometry = locationDatabase.getGeometry(routeParam(request, 'uid'));
     return geometry ? response.json(geometry) : response.status(404).json({ message: 'Geometry not available for this location' });
   });
 
   app.get('/api/location-registry/locations/:uid/descendants', (request, response) => {
-    if (!locationDatabase.getLocation(routeParam(request, 'uid'))) return response.status(404).json({ message: 'Location not found' });
+    const location = locationDatabase.getLocation(routeParam(request, 'uid'));
+    if (!location) return response.status(404).json({ message: 'Location not found' });
+    if (!canReadLocation(request, location)) return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the requested location subtree.' });
     return response.json(locationDatabase.getDescendants(
       routeParam(request, 'uid'),
       integerQuery(request.query.maxDepth),

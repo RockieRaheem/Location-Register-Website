@@ -1,4 +1,4 @@
-import { hasApiPermission, type ApiPrincipal, type ApiRole } from './apiPolicy.ts';
+import { canReadLocation, hasApiPermission, hasCountryWideRead, type ApiPrincipal, type ApiRole } from './apiPolicy.ts';
 
 const principal = (role: ApiRole, countries: string[] = []): ApiPrincipal => ({
   uid: `${role}-user`,
@@ -29,5 +29,20 @@ describe('API role permissions', () => {
 
   it('allows administrators to manage the system', () => {
     expect(hasApiPermission(principal('admin'), 'manage_system')).toBe(true);
+  });
+
+  it('limits country-scoped reads to assigned countries', () => {
+    const user = principal('developer', ['UG']);
+    expect(hasCountryWideRead(user, 'UG')).toBe(true);
+    expect(hasCountryWideRead(user, 'KE')).toBe(false);
+    expect(canReadLocation(user, { uid: 'kampala', countryCode: 'UG' }, () => false)).toBe(true);
+    expect(canReadLocation(user, { uid: 'nairobi', countryCode: 'KE' }, () => false)).toBe(false);
+  });
+
+  it('makes assigned location roots override broader country access', () => {
+    const user = { ...principal('developer', ['UG']), assignedLocationReferenceCodes: ['UG-L02-KAMPALA'] };
+    expect(hasCountryWideRead(user, 'UG')).toBe(false);
+    expect(canReadLocation(user, { uid: 'kampala-child', countryCode: 'UG' }, (uid) => uid === 'kampala-child')).toBe(true);
+    expect(canReadLocation(user, { uid: 'gulu', countryCode: 'UG' }, () => false)).toBe(false);
   });
 });

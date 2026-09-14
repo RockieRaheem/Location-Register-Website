@@ -71,11 +71,17 @@ export const locationApiOpenApi = {
     '/locations/{referenceCode}': {
       get: { summary: 'Get one location', operationId: 'getLocation', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Location and discoverable links.' }, ...errorResponses } },
     },
+    '/locations/{referenceCode}/api': {
+      get: { summary: 'Discover links for a location-scoped API', operationId: 'getLocationApiDescriptor', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Location scope and discoverable links.' }, ...errorResponses } },
+    },
     '/locations/{referenceCode}/children': {
       get: { summary: 'Get direct children', operationId: 'getLocationChildren', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Direct child locations.' }, ...errorResponses } },
     },
     '/locations/{referenceCode}/subtree': {
       get: { summary: 'Get a complete paginated subtree', operationId: 'getLocationSubtree', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }, { name: 'maxDepth', in: 'query', schema: { type: 'integer', minimum: 1 } }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 1000 } }, { name: 'offset', in: 'query', schema: { type: 'integer', minimum: 0 } }], responses: { '200': { description: 'Root location and descendant page.' }, ...errorResponses } },
+    },
+    '/locations/{referenceCode}/descendants': {
+      get: { summary: 'Get paginated descendants', operationId: 'getLocationDescendants', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }, { name: 'maxDepth', in: 'query', schema: { type: 'integer', minimum: 1 } }, { name: 'limit', in: 'query', schema: { type: 'integer', minimum: 1, maximum: 1000 } }, { name: 'offset', in: 'query', schema: { type: 'integer', minimum: 0 } }], responses: { '200': { description: 'Paginated descendant collection.' }, ...errorResponses } },
     },
     '/locations/{referenceCode}/ancestors': {
       get: { summary: 'Get the path from country to location', operationId: 'getLocationAncestors', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Ordered ancestor collection.' }, ...errorResponses } },

@@ -9,8 +9,10 @@ describe('Any-Location OpenAPI contract', () => {
       '/countries/{countryCode}/schema',
       '/countries/{countryCode}/locations',
       '/locations/{referenceCode}',
+      '/locations/{referenceCode}/api',
       '/locations/{referenceCode}/children',
       '/locations/{referenceCode}/subtree',
+      '/locations/{referenceCode}/descendants',
       '/locations/{referenceCode}/ancestors',
       '/locations/{referenceCode}/geometry',
     ]));

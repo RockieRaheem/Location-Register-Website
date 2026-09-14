@@ -48,6 +48,24 @@ try {
     if (counts[Number(depth)] !== expected) fail(`Uganda depth ${depth}: expected ${expected}, found ${counts[Number(depth)]}`);
   }
 
+  const rootPage = database.listLocations('UG', { levelOrder: 0, limit: 100 });
+  if (rootPage.total !== 1 || rootPage.items[0]?.name !== 'Uganda') {
+    fail('API level=0 query did not return only the Uganda country root');
+  }
+
+  const kampala = database.listLocations('UG', { levelOrder: 2, search: 'Kampala', limit: 10 }).items
+    .find((location) => location.name.toUpperCase() === 'KAMPALA');
+  if (!kampala || database.getLocationByReferenceCode(kampala.referenceCode)?.uid !== kampala.uid) {
+    fail('Kampala District could not be resolved through its public reference code');
+  }
+  const kampalaDescendants = database.getDescendants(kampala.uid, undefined, 1000, 0);
+  if (kampalaDescendants.total <= 25 || !kampalaDescendants.items.some((location) => location.levelOrder === 6)) {
+    fail('Kampala API subtree did not return supplied village-level descendants');
+  }
+  if (kampalaDescendants.limit !== 1000 || kampalaDescendants.offset !== 0) {
+    fail('API descendant pagination metadata is incorrect');
+  }
+
   const badPathCounts = database.db.prepare(`
     SELECT location.uid, location.depth, COUNT(path.ancestor_uid) AS ancestors
     FROM locations location
@@ -126,6 +144,7 @@ try {
     ugandaByDepth: counts,
     geospatial: { geometries: geometryCount, externalIds: externalIdCount },
     referenceCodes: { valid: true, unique: true, count: statistics.locations },
+    apiDelivery: { levelZeroFilter: true, kampalaReferenceResolved: true, kampalaDescendants: kampalaDescendants.total, villageDataReturned: true },
     sourceSha256: UGANDA_ELECTORAL_COMMISSION_2022_METADATA.sourceSha256,
     punctuationDistinctVillagesPreserved: collisionNames,
   };
