@@ -997,7 +997,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
           <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
             
             {/* Sidebar Navigation & Checklist */}
-            <div className={`${showNavigationPanel ? 'flex' : 'hidden'} w-full md:w-72 xl:w-80 max-h-[34vh] md:max-h-none border-b md:border-b-0 md:border-r shrink-0 flex-col min-h-0 ${
+            <div className={`${showNavigationPanel && currentLevel !== 'parishes' && currentLevel !== 'villages' ? 'flex' : 'hidden'} w-full md:w-72 xl:w-80 max-h-[34vh] md:max-h-none border-b md:border-b-0 md:border-r shrink-0 flex-col min-h-0 ${
               theme === 'dark' ? 'border-slate-800 bg-slate-950 text-slate-100' : 'border-slate-200 bg-white text-slate-900'
             }`}>
               
