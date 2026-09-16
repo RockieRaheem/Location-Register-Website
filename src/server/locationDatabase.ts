@@ -37,6 +37,49 @@ export interface LocationListOptions {
   offset?: number;
 }
 
+export interface LeadershipActor {
+  uid: string;
+  email?: string;
+  role: string;
+}
+
+export interface LocationLeaderInput {
+  fullName: string;
+  title: string;
+  email?: string;
+  phone?: string;
+  organization?: string;
+  biography?: string;
+  termStartedOn?: string;
+  replaceCurrent?: boolean;
+}
+
+export interface LocationLeaderRecord extends Omit<LocationLeaderInput, 'replaceCurrent'> {
+  uid: string;
+  locationUid: string;
+  isCurrent: boolean;
+  termEndedOn?: string;
+  createdAt: string;
+  createdByUid: string;
+  createdByEmail?: string;
+  updatedAt: string;
+  updatedByUid: string;
+  updatedByEmail?: string;
+}
+
+export interface LeadershipAuditRecord {
+  id: number;
+  assignmentUid?: string;
+  locationUid: string;
+  action: 'create' | 'update' | 'replace' | 'end';
+  actorUid: string;
+  actorEmail?: string;
+  actorRole: string;
+  before: LocationLeaderRecord | null;
+  after: LocationLeaderRecord | null;
+  occurredAt: string;
+}
+
 function uuidToBytes(uuid: string): Buffer {
   return Buffer.from(uuid.replace(/-/g, ''), 'hex');
 }
@@ -499,6 +542,116 @@ export class LocationDatabase {
     return row ? this.rowToLocation(row) : null;
   }
 
+  resolveLocationPath(countryCode: string, names: string[]): LocationRecord | null {
+    const country = this.getCountryRow(countryCode);
+    if (!country || names.length === 0) return null;
+    let current = this.getLocation(String(country.root_location_uid));
+    const path = names.map((name) => normalizeLocationName(requiredString(name, 'path name')));
+    if (current && path[0] === normalizeLocationName(current.name)) path.shift();
+    for (const normalizedName of path) {
+      if (!current) return null;
+      const row = this.db.prepare(`
+        SELECT location.*, country.iso2, level.level_order, level.level_key, level.name AS level_name
+        FROM locations location
+        JOIN countries country ON country.uid = location.country_uid
+        LEFT JOIN hierarchy_levels level ON level.uid = location.level_uid
+        WHERE location.parent_uid = ? AND location.normalized_name = ?
+        ORDER BY location.uid LIMIT 1
+      `).get(current.uid, normalizedName) as SqlRow | undefined;
+      current = row ? this.rowToLocation(row) : null;
+    }
+    return current;
+  }
+
+  getCurrentLeader(locationUid: string): LocationLeaderRecord | null {
+    const row = this.db.prepare(`
+      SELECT * FROM location_leader_assignments
+      WHERE location_uid = ? AND is_current = 1 LIMIT 1
+    `).get(locationUid) as SqlRow | undefined;
+    return row ? this.rowToLeader(row) : null;
+  }
+
+  getLeadershipHistory(locationUid: string): { assignments: LocationLeaderRecord[]; audit: LeadershipAuditRecord[] } {
+    const assignments = (this.db.prepare(`
+      SELECT * FROM location_leader_assignments WHERE location_uid = ?
+      ORDER BY is_current DESC, coalesce(term_started_on, created_at) DESC
+    `).all(locationUid) as SqlRow[]).map((row) => this.rowToLeader(row));
+    const audit = (this.db.prepare(`
+      SELECT * FROM location_leadership_audit_log WHERE location_uid = ?
+      ORDER BY occurred_at DESC, id DESC
+    `).all(locationUid) as SqlRow[]).map((row) => ({
+      id: Number(row.id),
+      assignmentUid: row.assignment_uid ? String(row.assignment_uid) : undefined,
+      locationUid: String(row.location_uid),
+      action: String(row.action) as LeadershipAuditRecord['action'],
+      actorUid: String(row.actor_uid),
+      actorEmail: row.actor_email ? String(row.actor_email) : undefined,
+      actorRole: String(row.actor_role),
+      before: parseJson<LocationLeaderRecord | null>(row.before_json, null),
+      after: parseJson<LocationLeaderRecord | null>(row.after_json, null),
+      occurredAt: String(row.occurred_at),
+    }));
+    return { assignments, audit };
+  }
+
+  saveCurrentLeader(locationUid: string, input: LocationLeaderInput, actor: LeadershipActor): LocationLeaderRecord {
+    if (!this.getLocation(locationUid)) throw new Error('Location not found');
+    const fullName = requiredString(input.fullName, 'fullName');
+    const title = requiredString(input.title, 'title');
+    const clean = (value?: string) => value?.trim() || null;
+    const date = (value: string | undefined, field: string) => {
+      if (!value) return null;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))) throw new Error(`${field} must be a valid YYYY-MM-DD date`);
+      return value;
+    };
+    return this.transaction(() => {
+      const before = this.getCurrentLeader(locationUid);
+      const replacing = Boolean(before && (input.replaceCurrent || normalizeLocationName(before.fullName) !== normalizeLocationName(fullName)));
+      if (replacing && before) {
+        const endedOn = date(input.termStartedOn, 'termStartedOn') || new Date().toISOString().slice(0, 10);
+        this.db.prepare(`UPDATE location_leader_assignments SET is_current = 0, term_ended_on = ?, updated_at = ?, updated_by_uid = ?, updated_by_email = ? WHERE uid = ?`)
+          .run(endedOn, new Date().toISOString(), actor.uid, actor.email || null, before.uid);
+      }
+      const uid = replacing || !before ? randomUUID() : before.uid;
+      if (replacing || !before) {
+        this.db.prepare(`
+          INSERT INTO location_leader_assignments(uid, location_uid, full_name, title, email, phone, organization, biography, term_started_on, created_by_uid, created_by_email, updated_by_uid, updated_by_email)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(uid, locationUid, fullName, title, clean(input.email), clean(input.phone), clean(input.organization), clean(input.biography), date(input.termStartedOn, 'termStartedOn'), actor.uid, actor.email || null, actor.uid, actor.email || null);
+      } else {
+        this.db.prepare(`
+          UPDATE location_leader_assignments SET full_name = ?, title = ?, email = ?, phone = ?, organization = ?, biography = ?, term_started_on = ?,
+            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by_uid = ?, updated_by_email = ? WHERE uid = ?
+        `).run(fullName, title, clean(input.email), clean(input.phone), clean(input.organization), clean(input.biography), date(input.termStartedOn, 'termStartedOn'), actor.uid, actor.email || null, uid);
+      }
+      const after = this.getCurrentLeader(locationUid) as LocationLeaderRecord;
+      const action: LeadershipAuditRecord['action'] = replacing ? 'replace' : before ? 'update' : 'create';
+      this.db.prepare(`
+        INSERT INTO location_leadership_audit_log(assignment_uid, location_uid, action, actor_uid, actor_email, actor_role, before_json, after_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(after.uid, locationUid, action, actor.uid, actor.email || null, actor.role, before ? JSON.stringify(before) : null, JSON.stringify(after));
+      return after;
+    });
+  }
+
+  endCurrentLeader(locationUid: string, termEndedOn: string | undefined, actor: LeadershipActor): LocationLeaderRecord {
+    return this.transaction(() => {
+      const before = this.getCurrentLeader(locationUid);
+      if (!before) throw new Error('Current leader not found');
+      const endedOn = termEndedOn || new Date().toISOString().slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(endedOn) || Number.isNaN(Date.parse(`${endedOn}T00:00:00Z`))) throw new Error('termEndedOn must be a valid YYYY-MM-DD date');
+      if (before.termStartedOn && endedOn < before.termStartedOn) throw new Error('termEndedOn cannot be before termStartedOn');
+      this.db.prepare(`UPDATE location_leader_assignments SET is_current = 0, term_ended_on = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), updated_by_uid = ?, updated_by_email = ? WHERE uid = ?`)
+        .run(endedOn, actor.uid, actor.email || null, before.uid);
+      const after = this.rowToLeader(this.db.prepare('SELECT * FROM location_leader_assignments WHERE uid = ?').get(before.uid) as SqlRow);
+      this.db.prepare(`
+        INSERT INTO location_leadership_audit_log(assignment_uid, location_uid, action, actor_uid, actor_email, actor_role, before_json, after_json)
+        VALUES (?, ?, 'end', ?, ?, ?, ?, ?)
+      `).run(before.uid, locationUid, actor.uid, actor.email || null, actor.role, JSON.stringify(before), JSON.stringify(after));
+      return after;
+    });
+  }
+
   listLocations(countryCode: string, options: LocationListOptions = {}): { items: LocationRecord[]; total: number; limit: number; offset: number } {
     const country = this.getCountryRow(countryCode);
     if (!country) throw new Error(`Country not found: ${countryCode}`);
@@ -736,6 +889,28 @@ export class LocationDatabase {
 
   integrityCheck(): string[] {
     return (this.db.prepare('PRAGMA integrity_check').all() as SqlRow[]).map((row) => String(Object.values(row)[0]));
+  }
+
+  private rowToLeader(row: SqlRow): LocationLeaderRecord {
+    return {
+      uid: String(row.uid),
+      locationUid: String(row.location_uid),
+      fullName: String(row.full_name),
+      title: String(row.title),
+      email: row.email == null ? undefined : String(row.email),
+      phone: row.phone == null ? undefined : String(row.phone),
+      organization: row.organization == null ? undefined : String(row.organization),
+      biography: row.biography == null ? undefined : String(row.biography),
+      termStartedOn: row.term_started_on == null ? undefined : String(row.term_started_on),
+      termEndedOn: row.term_ended_on == null ? undefined : String(row.term_ended_on),
+      isCurrent: Boolean(row.is_current),
+      createdAt: String(row.created_at),
+      createdByUid: String(row.created_by_uid),
+      createdByEmail: row.created_by_email == null ? undefined : String(row.created_by_email),
+      updatedAt: String(row.updated_at),
+      updatedByUid: String(row.updated_by_uid),
+      updatedByEmail: row.updated_by_email == null ? undefined : String(row.updated_by_email),
+    };
   }
 
   private rowToLocation(row: SqlRow): LocationRecord {

@@ -9,12 +9,16 @@ describe('Any-Location OpenAPI contract', () => {
       '/countries/{countryCode}/schema',
       '/countries/{countryCode}/locations',
       '/locations/{referenceCode}',
+      '/countries/{countryCode}/resolve-location',
       '/locations/{referenceCode}/api',
       '/locations/{referenceCode}/children',
       '/locations/{referenceCode}/subtree',
       '/locations/{referenceCode}/descendants',
       '/locations/{referenceCode}/ancestors',
       '/locations/{referenceCode}/geometry',
+      '/locations/{referenceCode}/leader',
+      '/locations/{referenceCode}/leadership-history',
+      '/locations/{referenceCode}/leader/end',
     ]));
   });
 });

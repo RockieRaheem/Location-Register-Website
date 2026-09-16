@@ -68,6 +68,9 @@ export const locationApiOpenApi = {
         responses: { '200': { description: 'Paginated location collection.' }, ...errorResponses },
       },
     },
+    '/countries/{countryCode}/resolve-location': {
+      get: { summary: 'Resolve one location from its complete hierarchy path', operationId: 'resolveLocationPath', parameters: [{ name: 'countryCode', in: 'path', required: true, schema: { type: 'string' } }, { name: 'path', in: 'query', required: true, schema: { type: 'string' }, description: 'Pipe-delimited names from the country root to the target.' }], responses: { '200': { description: 'Exactly resolved location.' }, ...errorResponses } },
+    },
     '/locations/{referenceCode}': {
       get: { summary: 'Get one location', operationId: 'getLocation', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Location and discoverable links.' }, ...errorResponses } },
     },
@@ -88,6 +91,16 @@ export const locationApiOpenApi = {
     },
     '/locations/{referenceCode}/geometry': {
       get: { summary: 'Get verified GeoJSON geometry when available', operationId: 'getLocationGeometry', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Source-attributed geometry.' }, ...errorResponses } },
+    },
+    '/locations/{referenceCode}/leader': {
+      get: { summary: 'Get the current leader for a location', operationId: 'getLocationLeader', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Current leader, or null when none is recorded.' }, ...errorResponses } },
+      put: { summary: 'Create, update, or replace the current leader', operationId: 'saveLocationLeader', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Saved leader assignment.' }, ...errorResponses } },
+    },
+    '/locations/{referenceCode}/leadership-history': {
+      get: { summary: 'Get leader assignments and immutable change history', operationId: 'getLocationLeadershipHistory', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Assignment and audit history.' }, ...errorResponses } },
+    },
+    '/locations/{referenceCode}/leader/end': {
+      post: { summary: 'End the current leader term', operationId: 'endLocationLeaderTerm', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Ended leader assignment.' }, ...errorResponses } },
     },
   },
 } as const;

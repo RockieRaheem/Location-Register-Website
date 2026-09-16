@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Check, ChevronRight, Home, Map, MapPin, Search, X,
+  ArrowLeft, ArrowRight, Check, ChevronRight, Home, Map, MapPin, Search, UserRound, X,
 } from 'lucide-react';
 import { Theme } from '../../types';
 import {
@@ -13,6 +13,7 @@ import {
   UgandaVillageNode,
 } from '../../data/locations/ugandaAdminHierarchy';
 import { UGANDA_DISTRICTS_DATA } from '../../data/maps/generated/ugandaDistrictsData';
+import LocationLeadershipPanel from './LocationLeadershipPanel';
 
 interface UgandaHierarchyExplorerProps {
   districtName: string;
@@ -37,9 +38,11 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
 }) => {
   const [level, setLevel] = useState<ExplorerLevel>('subcounties');
   const [subcountyName, setSubcountyName] = useState<string | null>(null);
+  const [constituencyName, setConstituencyName] = useState<string | null>(null);
   const [parish, setParish] = useState<UgandaParishNode | null>(null);
   const [village, setVillage] = useState<UgandaVillageNode | null>(null);
   const [query, setQuery] = useState('');
+  const [leadershipTarget, setLeadershipTarget] = useState<{ label: string; path: string[] } | null>(null);
   const dark = theme === 'dark';
   const district = useMemo(() => getElectoralCommissionDistrict(districtName), [districtName]);
   const regionName = UGANDA_DISTRICTS_DATA[districtName]?.region || 'Region not specified';
@@ -94,6 +97,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
   const selectRecord = (record: typeof records[number]) => {
     if (level === 'subcounties') {
       setSubcountyName(record.name);
+      setConstituencyName(record.secondary);
       setParish(null);
       setVillage(null);
       setLevel('parishes');
@@ -115,6 +119,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
     } else if (level === 'parishes') {
       setLevel('subcounties');
       setSubcountyName(null);
+      setConstituencyName(null);
     } else {
       onBackToCountry();
     }
@@ -124,7 +129,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
     { label: 'Africa', action: onBackToAfrica },
     { label: 'Uganda', action: onBackToCountry },
     { label: regionName },
-    { label: district?.name || districtName, action: () => { setLevel('subcounties'); setSubcountyName(null); setParish(null); setVillage(null); } },
+    { label: district?.name || districtName, action: () => { setLevel('subcounties'); setSubcountyName(null); setConstituencyName(null); setParish(null); setVillage(null); } },
     ...(subcountyName ? [{ label: subcountyName, action: () => { setLevel('parishes'); setParish(null); setVillage(null); } }] : []),
     ...(parish ? [{ label: parish.name, action: () => { setLevel('villages'); setVillage(null); } }] : []),
   ];
@@ -135,6 +140,12 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
       : level === 'parishes'
         ? 'Back to sub-counties'
         : 'Back to Uganda map';
+  const districtPath = ['Uganda', regionName, district?.name || districtName];
+  const currentPath = level === 'subcounties'
+    ? districtPath
+    : level === 'parishes'
+      ? [...districtPath, constituencyName || '', subcountyName || ''].filter(Boolean)
+      : [...districtPath, constituencyName || '', subcountyName || '', parish?.name || ''].filter(Boolean);
 
   return (
     <div className={`absolute inset-0 z-40 flex flex-col ${dark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
@@ -173,7 +184,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
                 Browse the official {pluralLabel(level)}. Select one record to continue deeper into the hierarchy.
               </p>
             </div>
-            <div className="flex items-center gap-2" aria-label="Hierarchy progress">
+            <div className="flex items-center gap-3"><button type="button" onClick={() => setLeadershipTarget({ label: currentPath[currentPath.length - 1], path: currentPath })} className={`flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold ${dark ? 'border-slate-700 hover:bg-slate-900' : 'border-slate-300 bg-white hover:bg-slate-50'}`}><UserRound size={16} /> View leader</button><div className="flex items-center gap-2" aria-label="Hierarchy progress">
               {(['subcounties', 'parishes', 'villages'] as ExplorerLevel[]).map((step, index) => {
                 const activeIndex = ['subcounties', 'parishes', 'villages'].indexOf(level);
                 const complete = index < activeIndex;
@@ -187,7 +198,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
                   </div>
                 );
               })}
-            </div>
+            </div></div>
           </div>
 
           <div className={`mb-5 flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${dark ? 'border-slate-800 bg-slate-900/60' : 'border-slate-200 bg-white'}`}>
@@ -201,8 +212,14 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
 
           {records.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {records.map((record, index) => (
-                <button type="button" key={record.id} onClick={() => selectRecord(record)} className={`group flex min-w-0 items-center gap-3 rounded-xl border p-4 text-left transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 ${dark ? 'border-slate-800 bg-slate-900/70 hover:border-slate-600 hover:bg-slate-900' : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'}`}>
+              {records.map((record, index) => {
+                const path = level === 'subcounties'
+                  ? [...districtPath, record.secondary, record.name]
+                  : level === 'parishes'
+                    ? [...districtPath, constituencyName || '', subcountyName || '', record.name].filter(Boolean)
+                    : [...districtPath, constituencyName || '', subcountyName || '', parish?.name || '', record.name].filter(Boolean);
+                return <div key={record.id} className={`group flex min-w-0 items-center rounded-xl border transition-all ${dark ? 'border-slate-800 bg-slate-900/70 hover:border-slate-600 hover:bg-slate-900' : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'}`}>
+                <button type="button" onClick={() => selectRecord(record)} className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500">
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-semibold tabular-nums ${dark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>{String(index + 1).padStart(2, '0')}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold" title={record.name}>{record.name}</span>
@@ -211,7 +228,8 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
                   </span>
                   <ArrowRight size={16} className="shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5" />
                 </button>
-              ))}
+                <button type="button" onClick={() => setLeadershipTarget({ label: record.name, path })} className="mr-3 rounded-lg p-2 text-slate-400 hover:bg-yellow-500/15 hover:text-yellow-600" title={`View ${record.name} leadership`} aria-label={`View ${record.name} leadership`}><UserRound size={17} /></button>
+              </div>})}
             </div>
           ) : (
             <div className={`rounded-xl border border-dashed py-16 text-center ${dark ? 'border-slate-700' : 'border-slate-300'}`}>
@@ -243,6 +261,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
           </div>
         </aside>
       )}
+      {leadershipTarget && <LocationLeadershipPanel countryCode="UG" path={leadershipTarget.path} label={leadershipTarget.label} theme={theme} onClose={() => setLeadershipTarget(null)} />}
     </div>
   );
 };

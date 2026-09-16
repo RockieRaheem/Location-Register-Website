@@ -59,15 +59,22 @@ npm run firebase:set-role -- --email=manager@example.com --role=country_admin --
 | `GET` | `/api/v1/countries/{countryCode}/locations` | Read |
 | `POST` | `/api/v1/countries/{countryCode}/locations` | Contributor for country |
 | `GET` | `/api/v1/locations/{referenceCode}` | Read |
+| `GET` | `/api/v1/countries/{countryCode}/resolve-location?path=Uganda%7CCentral%7CKampala` | Resolve an unambiguous full hierarchy path |
 | `GET` | `/api/v1/locations/{referenceCode}/ancestors` | Read |
 | `GET` | `/api/v1/locations/{referenceCode}/descendants` | Read |
 | `GET` | `/api/v1/locations/{referenceCode}/children` | Direct children in the assigned scope |
 | `GET` | `/api/v1/locations/{referenceCode}/subtree` | Paginated hierarchy rooted at any location |
 | `GET` | `/api/v1/locations/{referenceCode}/api` | Discoverable API description and links |
 | `GET` | `/api/v1/locations/{referenceCode}/geometry` | Read |
+| `GET` | `/api/v1/locations/{referenceCode}/leader` | Read current leader details |
+| `GET` | `/api/v1/locations/{referenceCode}/leadership-history` | Read prior assignments and accountability history |
+| `PUT` | `/api/v1/locations/{referenceCode}/leader` | Admin, country admin, or contributor in the assigned scope |
+| `POST` | `/api/v1/locations/{referenceCode}/leader/end` | End a leader term in the assigned scope |
 | `PATCH` | `/api/v1/locations/{referenceCode}` | Contributor for country |
 | `POST` | `/api/v1/locations/{referenceCode}/move` | Country admin for country |
 | `DELETE` | `/api/v1/locations/{referenceCode}` | Country admin for country |
+
+Leadership is optional at every hierarchy level. A changed name creates a new time-bounded assignment instead of overwriting the former leader. Every create, edit, replacement, and term ending is appended to an immutable audit ledger with the actor UID, email (when available), role, timestamp, and before/after record. Read-only roles can view leadership but cannot change it; scoped contributors cannot write outside their assigned country and location subtree.
 
 List endpoints accept `level`, `parentReferenceCode`, `search`, `limit`, and `offset`. Creating a child uses `parentReferenceCode`; moving a location uses `parentReferenceCode`. External clients therefore never need to persist internal UUID relationships. The server caps a page at 1,000 records. Error responses use HTTP `401`, `403`, `404`, or `409` instead of silently returning unauthorized data.
 

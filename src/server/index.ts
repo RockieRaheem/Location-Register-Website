@@ -53,6 +53,11 @@ function actorFromRequest(request: express.Request): string {
   return apiPrincipal(request).uid;
 }
 
+function leadershipActorFromRequest(request: express.Request) {
+  const principal = apiPrincipal(request);
+  return { uid: principal.uid, email: principal.email, role: principal.role };
+}
+
 function errorStatus(error: unknown): number {
   const message = error instanceof Error ? error.message : '';
   if (message.includes('not found') || message.includes('not configured')) return 404;
@@ -162,12 +167,26 @@ async function startServer() {
     }
     return next();
   };
+  const authorizeLocationContribution: express.RequestHandler = (request, response, next) => {
+    const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
+    if (!location) return response.status(404).json({ message: 'Location reference not found' });
+    const principal = apiPrincipal(request);
+    const countryAssigned = principal.assignedCountryCodes.includes(location.countryCode);
+    const locationAssigned = principal.assignedLocationReferenceCodes.length > 0 && canReadLocation(request, location);
+    const mayContribute = principal.role === 'admin'
+      || (principal.role === 'country_admin' && countryAssigned && canReadLocation(request, location))
+      || (principal.role === 'contributor' && (countryAssigned || locationAssigned) && canReadLocation(request, location));
+    if (!mayContribute) return response.status(403).json({ code: 'LOCATION_WRITE_SCOPE_REQUIRED', message: 'This account is not authorized to update leadership for this location.' });
+    return next();
+  };
   const locationLinks = (referenceCode: string) => ({
     self: `/api/v1/locations/${referenceCode}`,
     children: `/api/v1/locations/${referenceCode}/children`,
     subtree: `/api/v1/locations/${referenceCode}/subtree`,
     ancestors: `/api/v1/locations/${referenceCode}/ancestors`,
     geometry: `/api/v1/locations/${referenceCode}/geometry`,
+    leader: `/api/v1/locations/${referenceCode}/leader`,
+    leadershipHistory: `/api/v1/locations/${referenceCode}/leadership-history`,
   });
 
   // Stable, versioned integration API. Reference codes are immutable public identifiers;
@@ -215,6 +234,20 @@ async function startServer() {
       return response.json({ ...page, apiVersion: 'v1' });
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to list locations' });
+    }
+  });
+
+  app.get('/api/v1/countries/:countryCode/resolve-location', (request, response) => {
+    try {
+      if (!requireCountryRead(request, response)) return;
+      const names = String(request.query.path || '').split('|').map((name) => name.trim()).filter(Boolean);
+      if (names.length === 0 || names.length > 12) return response.status(400).json({ message: 'Supply a path containing 1 to 12 location names.' });
+      const location = locationDatabase.resolveLocationPath(routeParam(request, 'countryCode'), names);
+      if (!location) return response.status(404).json({ message: 'No location matches the complete hierarchy path.' });
+      if (!canReadLocation(request, location)) return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the resolved location.' });
+      return response.json(location);
+    } catch (error) {
+      return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to resolve location path' });
     }
   });
 
@@ -291,6 +324,34 @@ async function startServer() {
     if (!location) return response.status(404).json({ message: 'Location reference not found' });
     const geometry = locationDatabase.getGeometry(location.uid);
     return geometry ? response.json(geometry) : response.status(404).json({ message: 'Geometry not available for this location' });
+  });
+
+  app.get('/api/v1/locations/:referenceCode/leader', authorizeLocationRead, (request, response) => {
+    const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
+    return response.json({ location, leader: locationDatabase.getCurrentLeader(location.uid) });
+  });
+
+  app.get('/api/v1/locations/:referenceCode/leadership-history', authorizeLocationRead, (request, response) => {
+    const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
+    return response.json({ location, ...locationDatabase.getLeadershipHistory(location.uid) });
+  });
+
+  app.put('/api/v1/locations/:referenceCode/leader', authorizeLocationContribution, (request, response) => {
+    try {
+      const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
+      return response.json({ location, leader: locationDatabase.saveCurrentLeader(location.uid, request.body, leadershipActorFromRequest(request)) });
+    } catch (error) {
+      return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to save location leader' });
+    }
+  });
+
+  app.post('/api/v1/locations/:referenceCode/leader/end', authorizeLocationContribution, (request, response) => {
+    try {
+      const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
+      return response.json({ location, leader: locationDatabase.endCurrentLeader(location.uid, request.body.termEndedOn, leadershipActorFromRequest(request)) });
+    } catch (error) {
+      return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to end leader term' });
+    }
   });
 
   app.patch('/api/v1/locations/:referenceCode', authorize('contribute', countryFromReference), (request, response) => {
