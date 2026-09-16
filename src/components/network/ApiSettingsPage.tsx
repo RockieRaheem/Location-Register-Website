@@ -7,14 +7,15 @@ import {
   getLocationApiDescriptor,
   type LocationApiDescriptor,
 } from '../../services/userAdministrationService';
+import ApiScopeBuilder from './ApiScopeBuilder';
 
 interface ApiSettingsPageProps { theme: Theme; currentUser: User; }
-type Tab = 'overview' | 'authentication' | 'endpoints' | 'examples' | 'errors';
+type Tab = 'builder' | 'overview' | 'authentication' | 'endpoints' | 'examples' | 'errors';
 
 const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser }) => {
   const [descriptors, setDescriptors] = useState<LocationApiDescriptor[]>([]);
   const [hasGlobalRead, setHasGlobalRead] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [activeTab, setActiveTab] = useState<Tab>('builder');
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tokenLoading, setTokenLoading] = useState(false);
@@ -58,6 +59,7 @@ const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser })
 
   const panel = theme === 'dark' ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-white';
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'builder', label: 'Choose Data', icon: <MapPin size={15} /> },
     { id: 'overview', label: 'Overview', icon: <BookOpen size={15} /> },
     { id: 'authentication', label: 'Authentication', icon: <KeyRound size={15} /> },
     { id: 'endpoints', label: 'Endpoints', icon: <Braces size={15} /> },
@@ -71,7 +73,7 @@ const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser })
     <div className="space-y-4 pb-8">
       <section className={`rounded-2xl border p-5 sm:p-6 ${panel}`}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-3"><div className="rounded-xl bg-yellow-500/15 p-3 text-yellow-500"><Terminal size={25} /></div><div><p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-500">Developer Portal</p><h2 className="text-2xl font-black">Any-Location API v1</h2><p className="mt-1 text-sm text-slate-500">Authenticated hierarchy data from country to village using immutable reference codes.</p></div></div>
+          <div className="flex items-start gap-3"><div className="rounded-xl bg-yellow-500/15 p-3 text-yellow-500"><Terminal size={25} /></div><div><p className="text-xs font-black uppercase tracking-[0.2em] text-yellow-500">API access</p><h2 className="text-2xl font-black">Any-Location API v1</h2><p className="mt-1 text-sm text-slate-500">Choose the exact country, administrative level or location data your system needs.</p></div></div>
           <div className="flex flex-wrap gap-2 text-xs"><Badge text="REST / JSON" /><Badge text="Firebase Auth" /><Badge text="Versioned v1" /><Badge text="Max 1,000/page" /></div>
         </div>
       </section>
@@ -81,6 +83,8 @@ const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser })
       </nav>
 
       {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm font-semibold text-red-500">{error}</div>}
+
+      {activeTab === 'builder' && <ApiScopeBuilder theme={theme} baseUrl={baseUrl} hasGlobalRead={hasGlobalRead} assignedScopes={descriptors} />}
 
       {activeTab === 'overview' && <div className="grid gap-4 lg:grid-cols-3"><InfoCard theme={theme} title="Base URL" value={`${baseUrl}/api/v1`} /><InfoCard theme={theme} title="Your access" value={hasGlobalRead ? 'All locations · read only' : `${descriptors.length} scoped subtree${descriptors.length === 1 ? '' : 's'}`} /><InfoCard theme={theme} title="Identity" value={currentUser.email} /><section className={`lg:col-span-3 rounded-xl border p-5 ${panel}`}><h3 className="font-black">How location APIs work</h3><p className="mt-2 text-sm leading-6 text-slate-500">Every location has a permanent <code>referenceCode</code>. Use it to retrieve the location, its direct children, complete descendant subtree, ancestor path, or verified geometry. Names can change without breaking integrations because reference codes never change.</p><div className="mt-4"><Endpoint method="GET" path="/api/v1/openapi.json" baseUrl={baseUrl} copied={copied} onCopy={copy} description="Machine-readable OpenAPI 3.1 contract" /></div></section></div>}
 

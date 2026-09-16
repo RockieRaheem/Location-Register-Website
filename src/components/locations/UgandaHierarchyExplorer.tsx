@@ -120,14 +120,21 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
     }
   };
 
-  const breadcrumb = [
+  const breadcrumb: Array<{ label: string; action?: () => void }> = [
     { label: 'Africa', action: onBackToAfrica },
     { label: 'Uganda', action: onBackToCountry },
-    { label: regionName, action: onBackToCountry },
+    { label: regionName },
     { label: district?.name || districtName, action: () => { setLevel('subcounties'); setSubcountyName(null); setParish(null); setVillage(null); } },
     ...(subcountyName ? [{ label: subcountyName, action: () => { setLevel('parishes'); setParish(null); setVillage(null); } }] : []),
     ...(parish ? [{ label: parish.name, action: () => { setLevel('villages'); setVillage(null); } }] : []),
   ];
+  const backLabel = village
+    ? 'Back to villages'
+    : level === 'villages'
+      ? 'Back to parishes'
+      : level === 'parishes'
+        ? 'Back to sub-counties'
+        : 'Back to Uganda map';
 
   return (
     <div className={`absolute inset-0 z-40 flex flex-col ${dark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
@@ -135,16 +142,13 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
         <div className="mx-auto flex min-h-16 max-w-7xl items-center gap-3 px-4 sm:px-6">
           <button type="button" onClick={goUp} className={`flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors ${dark ? 'border-slate-700 hover:bg-slate-900' : 'border-slate-300 hover:bg-slate-50'}`}>
             <ArrowLeft size={17} />
-            <span className="hidden sm:inline">Back</span>
+            <span className="hidden sm:inline">{backLabel}</span>
           </button>
           <nav aria-label="Location breadcrumb" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto whitespace-nowrap text-sm">
             {breadcrumb.map((item, index) => (
               <React.Fragment key={`${item.label}-${index}`}>
                 {index > 0 && <ChevronRight size={14} className="shrink-0 text-slate-400" />}
-                <button type="button" onClick={item.action} className={`truncate rounded px-1.5 py-1 transition-colors hover:bg-slate-500/10 ${index === breadcrumb.length - 1 ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-500'}`}>
-                  {index === 0 && <Home size={14} className="mr-1 inline" />}
-                  {item.label}
-                </button>
+                {item.action ? <button type="button" onClick={item.action} className={`truncate rounded px-1.5 py-1 transition-colors hover:bg-slate-500/10 ${index === breadcrumb.length - 1 ? 'font-semibold text-slate-900 dark:text-white' : 'text-slate-500'}`}>{index === 0 && <Home size={14} className="mr-1 inline" />}{item.label}</button> : <span className="truncate px-1.5 py-1 text-slate-500">{item.label}</span>}
               </React.Fragment>
             ))}
           </nav>

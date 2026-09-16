@@ -173,7 +173,7 @@ const titles: Record<string, string> = {
     'product-chain-distributors': 'Distributors',
     'product-chain-suppliers': 'Suppliers',
     'settings-cameras': 'Camera Settings',
-    'settings-api': 'Developer API Portal',
+    'settings-api': 'API Access',
     'settings-calls': 'Call Settings',
     'shop-surveillance': 'Surveillance',
     'wallet-settings': 'Wallet Settings',

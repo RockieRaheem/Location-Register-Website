@@ -62,7 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
   const { t } = useTranslation();
   const isCustomer = userRole === 'Customer';
   const isLocationExplorer = userRole === 'Contributor' || userRole === 'Developer';
-  const isDeveloper = userRole === 'Developer';
+  const hasApiAccess = ['Administrator', 'Admin', 'Developer', 'Contributor', 'Country Admin', 'Country Administrator', 'Manufacturer', 'Financial Institution'].includes(userRole || '');
   const isFinancialInstitution = userRole === 'Financial Institution';
   // Treat 'Admin' from SignIn as Super Admin (same as 'Administrator')
   const isSuperAdmin = userRole === 'Administrator' || userRole === 'Admin';
@@ -128,10 +128,10 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
       </div>
       
       <nav className={`flex-1 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-2 ${isCollapsed ? '' : 'pr-2'}`}>
-        {(isDeveloper || isSuperAdmin) && (
+        {hasApiAccess && (
           <>
-            <SectionTitle theme={theme} isCollapsed={isCollapsed}>Developers</SectionTitle>
-            <NavLink isCollapsed={isCollapsed} theme={theme} icon="api" label="Developer API" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />
+            <SectionTitle theme={theme} isCollapsed={isCollapsed}>Data access</SectionTitle>
+            <NavLink isCollapsed={isCollapsed} theme={theme} icon="api" label="API Access" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />
           </>
         )}
 

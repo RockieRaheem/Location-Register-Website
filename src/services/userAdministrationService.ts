@@ -47,6 +47,34 @@ export function getLocationApiDescriptor(referenceCode: string): Promise<Locatio
   return ownerRequest(`/api/v1/locations/${encodeURIComponent(referenceCode)}/api`);
 }
 
+export interface ApiCountryOption { countryCode: string; name: string; }
+export interface ApiHierarchyLevel { order: number; key: string; name: string; }
+export interface ApiLocationOption {
+  referenceCode: string;
+  name: string;
+  countryCode: string;
+  levelOrder: number;
+  levelName: string;
+  type: string;
+}
+
+export async function listAccessibleApiCountries(): Promise<ApiCountryOption[]> {
+  const result = await ownerRequest<{ items: ApiCountryOption[] }>('/api/v1/countries');
+  return result.items;
+}
+
+export async function getApiCountryHierarchy(countryCode: string): Promise<ApiHierarchyLevel[]> {
+  const result = await ownerRequest<{ levels: ApiHierarchyLevel[] }>(`/api/v1/countries/${encodeURIComponent(countryCode)}/schema`);
+  return result.levels;
+}
+
+export async function searchAccessibleApiLocations(countryCode: string, search: string, level?: number): Promise<ApiLocationOption[]> {
+  const query = new URLSearchParams({ search, limit: '50', offset: '0' });
+  if (level != null) query.set('level', String(level));
+  const result = await ownerRequest<{ items: ApiLocationOption[] }>(`/api/v1/countries/${encodeURIComponent(countryCode)}/locations?${query}`);
+  return result.items;
+}
+
 export async function listRegisteredUsers(): Promise<RegisteredUserAccess[]> {
   const result = await ownerRequest<{ items: RegisteredUserAccess[] }>('/api/v1/admin/users');
   return result.items;
