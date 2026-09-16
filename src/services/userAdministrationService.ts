@@ -20,9 +20,24 @@ export async function authenticatedApiRequest<T>(url: string, init?: RequestInit
   const headers = new Headers(init?.headers);
   headers.set('Authorization', `Bearer ${token}`);
   if (init?.body) headers.set('Content-Type', 'application/json');
+  headers.set('Accept', 'application/json');
   const response = await fetch(url, { ...init, headers });
-  const body = response.status === 204 ? null : await response.json();
-  if (!response.ok) throw new Error(body?.message || 'The authenticated operation failed.');
+  const contentType = response.headers.get('content-type') || '';
+  const rawBody = response.status === 204 ? '' : await response.text();
+  let body: any = null;
+  if (rawBody && contentType.includes('application/json')) {
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      throw new Error(`The API returned malformed JSON (${response.status} ${response.statusText}).`);
+    }
+  } else if (rawBody) {
+    const summary = rawBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
+    throw new Error(response.ok
+      ? 'The server returned a non-JSON response. Restart the application server and try again.'
+      : `API request failed (${response.status} ${response.statusText})${summary ? `: ${summary}` : '.'}`);
+  }
+  if (!response.ok) throw new Error(body?.error?.message || body?.message || body?.error?.code || body?.code || `The API request failed (${response.status}).`);
   return body as T;
 }
 

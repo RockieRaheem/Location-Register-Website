@@ -27,9 +27,10 @@ const LocationLeadershipPanel: React.FC<Props> = ({ countryCode, path, label, th
     (async () => {
       try {
         const resolved = await resolveLocationPath(countryCode, path);
-        const [leadership, history, session] = await Promise.all([
-          getLocationLeadership(resolved.referenceCode), getLocationLeadershipHistory(resolved.referenceCode), getCurrentApiSession(),
+        const [leadership, session] = await Promise.all([
+          getLocationLeadership(resolved.referenceCode), getCurrentApiSession(),
         ]);
+        const history = await getLocationLeadershipHistory(resolved.referenceCode).catch(() => ({ assignments: [], audit: [] }));
         if (!active) return;
         setLocation(resolved); setLeader(leadership.leader); setAudit(history.audit);
         setEditable(['admin', 'country_admin', 'contributor'].includes(session.role));

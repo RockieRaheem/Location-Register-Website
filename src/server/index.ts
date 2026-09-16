@@ -51,7 +51,11 @@ if (fs.existsSync(candidateEditionPath)) {
   }
   const registeredCodes = new Set(locationDatabase.getCountries().map((country) => country.countryCode));
   for (const country of countriesToMigrate) {
-    if (!registeredCodes.has(country.countryCode)) locationDatabase.syncManagedLocations(country);
+    // Register a canonical country root and schema. Legacy mock children are not
+    // authoritative and some contain invalid cross-level parent relationships.
+    if (!registeredCodes.has(country.countryCode)) {
+      locationDatabase.syncManagedLocations({ ...country, adminLevels: [] });
+    }
   }
 }
 
@@ -660,6 +664,23 @@ async function startServer() {
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to delete location' });
     }
+  });
+
+  // API requests must terminate as JSON and must never fall through to the SPA HTML shell.
+  app.use('/api', (request, response) => response.status(404).json({
+    code: 'API_ROUTE_NOT_FOUND',
+    message: `No API route matches ${request.method} ${request.originalUrl}.`,
+    requestId: response.getHeader('X-Request-ID'),
+  }));
+  app.use((error: unknown, request: express.Request, response: express.Response, next: express.NextFunction) => {
+    if (!request.path.startsWith('/api')) return next(error);
+    const message = error instanceof Error ? error.message : 'Unexpected API error';
+    const malformedJson = error instanceof SyntaxError && 'body' in error;
+    return response.status(malformedJson ? 400 : 500).json({
+      code: malformedJson ? 'INVALID_JSON' : 'INTERNAL_API_ERROR',
+      message: malformedJson ? 'The request body is not valid JSON.' : message,
+      requestId: response.getHeader('X-Request-ID'),
+    });
   });
 
   if (process.env.NODE_ENV !== 'production') {
