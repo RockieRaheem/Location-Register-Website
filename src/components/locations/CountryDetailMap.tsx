@@ -8,10 +8,9 @@ import {
   getElectoralCommissionSubcounty,
 } from '../../data/locations/ugandaElectoralCommission2022';
 import { Theme, Shop } from '../../types';
-import { ArrowLeft, Plus, Minus, Maximize2, RotateCcw, Search, ChevronRight, Layers, MapPin, Eye } from 'lucide-react';
-import Icon from '../shared/Icon';
+import { ArrowLeft, Plus, Minus, Maximize2, RotateCcw, ChevronRight } from 'lucide-react';
 import CountryMapModal from './CountryMapModal';
-import CountryProfileModal from './CountryProfileModal';
+import UgandaHierarchyExplorer from './UgandaHierarchyExplorer';
 
 const KAMPALA_DIVISIONS = [
   {
@@ -277,7 +276,6 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
   const [scale, setScale] = useState(1);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [pointerPosition, setPointerPosition] = useState({ x: 0, y: 0 });
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [modalConfig, setModalConfig] = useState<{
     countryId: string;
     countryName: string;
@@ -286,6 +284,7 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
     initialDistrict?: string | null;
     initialSubcounty?: string | null;
   } | null>(null);
+  const [ugandaExplorerDistrict, setUgandaExplorerDistrict] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -368,12 +367,7 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
       const sourceDistrict = getElectoralCommissionDistrict(pathName);
       if (sourceDistrict) {
         handleSelectDistrict(pathName);
-        setModalConfig({
-          countryId: 'UG',
-          countryName: 'Uganda',
-          initialLevel: 'subcounties',
-          initialDistrict: pathName,
-        });
+        setUgandaExplorerDistrict(pathName);
       }
     } else if (countryId === 'TZ' && pathName === 'Dar es Salaam') {
       setDrillDownDistrict('Dar es Salaam');
@@ -549,6 +543,7 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
                 onChange={(e) => {
                   if (e.target.value) {
                     handleSelectDistrict(e.target.value);
+                    setUgandaExplorerDistrict(e.target.value);
                   } else {
                     setDrillDownDistrict(null);
                     setDrillDownDivision(null);
@@ -572,41 +567,8 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
           )}
         </div>
 
-        {/* Action & Zoom Controls */}
+        {/* Map controls */}
         <div className="flex items-center space-x-2 pointer-events-auto">
-          {countryId === 'UG' && (
-            <button
-              onClick={() => setModalConfig({
-                countryId: 'UG',
-                countryName: 'Uganda',
-                initialLevel: drillDownDistrict ? 'subcounties' : 'regions',
-                initialDistrict: drillDownDistrict,
-              })}
-              className={`px-3 py-2 rounded-xl border backdrop-blur-md transition-all shadow-lg flex items-center space-x-1.5 text-xs font-bold ${
-                theme === 'dark'
-                  ? 'bg-slate-900/90 border-emerald-500/40 text-emerald-400 hover:bg-slate-800'
-                  : 'bg-white/90 border-emerald-500/40 text-emerald-700 hover:bg-emerald-50'
-              }`}
-              title="Open the Electoral Commission 2022 district-to-village hierarchy"
-            >
-              <Layers size={15} />
-              <span>EC 2022 Hierarchy</span>
-            </button>
-          )}
-          <button 
-            onClick={() => setShowProfileModal(true)}
-            id="country-detail-profile-btn"
-            className={`px-3 py-2 rounded-xl border backdrop-blur-md transition-all shadow-lg flex items-center space-x-1.5 text-xs font-bold ${
-              theme === 'dark' 
-                ? 'bg-slate-900/90 border-yellow-500/40 text-yellow-400 hover:bg-slate-800 hover:border-yellow-400' 
-                : 'bg-white/90 border-yellow-500/40 text-yellow-700 hover:bg-yellow-50 hover:border-yellow-500'
-            }`}
-            title={`Access ${drillDownDistrict ? `${drillDownDistrict} District Profile` : `${countryDisplayName} Profile`}`}
-          >
-            <Icon name="view" className="h-4 w-4 text-yellow-500" />
-            <span>{drillDownDistrict ? 'District Profile' : 'Country Profile'}</span>
-          </button>
-
           <div className={`flex items-center border rounded-xl overflow-hidden shadow-lg backdrop-blur-md ${
             theme === 'dark' ? 'bg-slate-800/90 border-slate-700' : 'bg-white/90 border-slate-200'
           }`}>
@@ -1262,15 +1224,6 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
           </div>
         </div>
 
-        {/* Explore All Districts Guide / Quick Status */}
-        {countryId === 'UG' && !drillDownDistrict && (
-          <div className={`hidden sm:flex items-center space-x-2 px-3 py-1.5 rounded-xl border backdrop-blur-md shadow-lg pointer-events-auto text-xs ${
-            theme === 'dark' ? 'bg-slate-900/90 border-slate-700 text-slate-300' : 'bg-white/90 border-slate-200 text-slate-700'
-          }`}>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="font-semibold">All 135 Districts Ready for Drill-down</span>
-          </div>
-        )}
       </div>
 
       {modalConfig && (
@@ -1289,12 +1242,15 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
           }}
         />
       )}
-      {showProfileModal && (
-        <CountryProfileModal
+      {ugandaExplorerDistrict && (
+        <UgandaHierarchyExplorer
+          districtName={ugandaExplorerDistrict}
           theme={theme}
-          countryId={countryId}
-          countryName={countryDisplayName}
-          onClose={() => setShowProfileModal(false)}
+          onBackToCountry={() => setUgandaExplorerDistrict(null)}
+          onBackToAfrica={() => {
+            setUgandaExplorerDistrict(null);
+            onBack();
+          }}
         />
       )}
     </div>

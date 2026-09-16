@@ -1,11 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Theme, Shop, RegionalEconomicLevel, Country } from '../../types';
-import { africaDetailedPaths, africaGeoViewBox, africaWidth, africaHeight } from '../../data/maps/generated/africaPaths';
+import { africaDetailedPaths, africaGeoViewBox } from '../../data/maps/generated/africaPaths';
 import { allAfricanCountries } from '../../data/mockData';
 import { motion, AnimatePresence, useMotionValue, useSpring } from 'motion/react';
-import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Eye } from 'lucide-react';
-import Icon from '../shared/Icon';
-import CountryProfileModal from './CountryProfileModal';
+import { ZoomIn, ZoomOut, RotateCcw, Eye } from 'lucide-react';
 
 interface AfricaMapProps {
   shops: Shop[];
@@ -132,9 +130,7 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
   const [hoveredCountry, setHoveredCountry] = useState<{ id: string, name: string, density: number, color?: string } | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [scale, setScale] = useState(1);
-  const [profileModalCountry, setProfileModalCountry] = useState<{ id: string; name: string } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
   const handleCountryInteraction = (id: string, name: string) => {
     onCountryClick?.(id, name);
   };
@@ -155,10 +151,6 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
     setScale(1);
     x.set(0);
     y.set(0);
-  };
-
-  const toggleExpand = () => {
-    setIsExpanded(!isExpanded);
   };
 
   // Handle mouse wheel zoom
@@ -285,20 +277,14 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
   }, [shopDensity]);
 
   const colorScale = (density: number, countryName: string) => {
-    // Check if country belongs to a region with a custom color
-    const region = regionalLevels.find(rl => rl.countries.includes(countryName));
-    if (region && region.color) {
-      return region.color;
-    }
-
     if (density === 0) {
       return theme === 'dark' ? '#1e293b' : '#f1f5f9';
     }
     const intensity = Math.max(0.2, Math.min(1, density / maxDensity));
     if (theme === 'dark') {
-      return `rgba(234, 179, 8, ${intensity})`; // yellow-500
+      return `rgba(180, 133, 18, ${0.3 + intensity * 0.35})`;
     }
-    return `rgba(202, 138, 4, ${intensity})`; // yellow-600
+    return `rgba(217, 168, 46, ${0.2 + intensity * 0.3})`;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -343,12 +329,12 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
       onMouseMove={handleMouseMove}
     >
       {/* Zoom Controls */}
-      <div className="absolute top-4 right-4 z-20 flex flex-col space-y-2">
-        <div className={`flex flex-col border rounded-xl overflow-hidden shadow-xl backdrop-blur-md ${theme === 'dark' ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-slate-200'}`}>
+      <div className="absolute bottom-4 right-4 z-20">
+        <div className={`flex border rounded-lg overflow-hidden shadow-sm backdrop-blur-md ${theme === 'dark' ? 'bg-slate-900/90 border-slate-700' : 'bg-white/90 border-slate-200'}`}>
           <button 
             onClick={handleZoomIn}
             id="zoom-in-btn"
-            className={`p-2.5 transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-700'} border-b ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}
+            className={`p-2.5 transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-200 border-slate-700' : 'hover:bg-slate-100 text-slate-700 border-slate-200'} border-r`}
             title="Zoom In"
           >
             <ZoomIn size={18} />
@@ -356,7 +342,7 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
           <button 
             onClick={handleZoomOut}
             id="zoom-out-btn"
-            className={`p-2.5 transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-700'} border-b ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}
+            className={`p-2.5 transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-200 border-slate-700' : 'hover:bg-slate-100 text-slate-700 border-slate-200'} border-r`}
             title="Zoom Out"
           >
             <ZoomOut size={18} />
@@ -364,18 +350,10 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
           <button 
             onClick={handleReset}
             id="reset-view-btn"
-            className={`p-2.5 transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-700'} border-b ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}
+            className={`p-2.5 transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-700'}`}
             title="Reset View"
           >
             <RotateCcw size={18} />
-          </button>
-          <button 
-            onClick={toggleExpand}
-            id="toggle-expand-btn"
-            className={`p-2.5 transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-200' : 'hover:bg-slate-100 text-slate-700'}`}
-            title={isExpanded ? "Collapse Map" : "Expand Map"}
-          >
-            <Maximize2 size={18} className={isExpanded ? "rotate-180" : ""} />
           </button>
         </div>
       </div>
@@ -628,36 +606,13 @@ const AfricaMap: React.FC<AfricaMapProps> = ({ shops, shopDensity, regionalLevel
 
               <div className="flex items-center space-x-1.5 pt-1.5 mt-1 border-t border-slate-200/50 dark:border-slate-700/50 text-[10px] text-yellow-500 font-bold">
                 <Eye size={12} />
-                <span>Click to explore & view country profile</span>
+                <span>Select country</span>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Map Legend */}
-      <div className="absolute bottom-4 left-4 flex flex-col space-y-2 z-20">
-        <div id="map-legend" className={`p-3 rounded-lg border backdrop-blur-sm shadow-lg ${theme === 'dark' ? 'bg-slate-900/80 border-slate-700' : 'bg-white/80 border-slate-200'}`}>
-          <div className="flex flex-col space-y-1">
-            <span className={`text-[8px] font-bold uppercase ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Village density</span>
-            <div className="flex h-1.5 w-32 rounded-full overflow-hidden">
-              <div className="flex-1 bg-yellow-100" />
-              <div className="flex-1 bg-yellow-300" />
-              <div className="flex-1 bg-yellow-500" />
-              <div className="flex-1 bg-yellow-700" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {profileModalCountry && (
-        <CountryProfileModal
-          theme={theme}
-          countryId={profileModalCountry.id}
-          countryName={profileModalCountry.name}
-          onClose={() => setProfileModalCountry(null)}
-        />
-      )}
     </div>
   );
 };
