@@ -395,6 +395,26 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
   const handleZoomIn = () => setScale(prev => Math.min(prev * 1.5, 10));
   const handleZoomOut = () => setScale(prev => Math.max(prev / 1.5, 0.5));
 
+  const returnToUgandaMap = () => {
+    setUgandaExplorerDistrict(null);
+    setDrillDownDistrict(null);
+    setDrillDownDivision(null);
+    setHoveredSubdivision(null);
+    setHoveredRegion(null);
+    setScale(1.12);
+    x.set(0);
+    y.set(0);
+  };
+
+  const returnToAfricaMap = () => {
+    setUgandaExplorerDistrict(null);
+    setDrillDownDistrict(null);
+    setDrillDownDivision(null);
+    setHoveredSubdivision(null);
+    setHoveredRegion(null);
+    onBack();
+  };
+
   // Handle mouse wheel zoom
   useEffect(() => {
     const container = containerRef.current;
@@ -1246,11 +1266,8 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
         <UgandaHierarchyExplorer
           districtName={ugandaExplorerDistrict}
           theme={theme}
-          onBackToCountry={() => setUgandaExplorerDistrict(null)}
-          onBackToAfrica={() => {
-            setUgandaExplorerDistrict(null);
-            onBack();
-          }}
+          onBackToCountry={returnToUgandaMap}
+          onBackToAfrica={returnToAfricaMap}
         />
       )}
     </div>
