@@ -43,7 +43,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
   const [parish, setParish] = useState<UgandaParishNode | null>(null);
   const [village, setVillage] = useState<UgandaVillageNode | null>(null);
   const [query, setQuery] = useState('');
-  const [leadershipTarget, setLeadershipTarget] = useState<{ label: string; path: string[] } | null>(null);
+  const [leadershipTarget, setLeadershipTarget] = useState<{ label: string; path: string[]; referenceCode?: string } | null>(null);
   const [referenceByPath, setReferenceByPath] = useState<Record<string, string>>({});
   const [copiedReference, setCopiedReference] = useState<string | null>(null);
   const dark = theme === 'dark';
@@ -212,7 +212,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
                 Browse the official {pluralLabel(level)}. Select one record to continue deeper into the hierarchy.
               </p>
             </div>
-            <div className="flex items-center gap-3"><button type="button" onClick={() => setLeadershipTarget({ label: currentPath[currentPath.length - 1], path: currentPath })} className={`flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold ${dark ? 'border-slate-700 hover:bg-slate-900' : 'border-slate-300 bg-white hover:bg-slate-50'}`}><UserRound size={16} /> View leader</button><div className="flex items-center gap-2" aria-label="Hierarchy progress">
+            <div className="flex items-center gap-3"><button type="button" disabled={!currentReference} onClick={() => setLeadershipTarget({ label: currentPath[currentPath.length - 1], path: currentPath, referenceCode: currentReference })} className={`flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${dark ? 'border-slate-700 hover:bg-slate-900' : 'border-slate-300 bg-white hover:bg-slate-50'}`}><UserRound size={16} />{currentReference ? 'View leader' : 'Resolving location…'}</button><div className="flex items-center gap-2" aria-label="Hierarchy progress">
               {(['subcounties', 'parishes', 'villages'] as ExplorerLevel[]).map((step, index) => {
                 const activeIndex = ['subcounties', 'parishes', 'villages'].indexOf(level);
                 const complete = index < activeIndex;
@@ -255,7 +255,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
                   <ArrowRight size={16} className="shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5" />
                 </button>
                 {referenceCode && <button type="button" onClick={() => void copyReference(referenceCode)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-500/10 hover:text-yellow-600" title="Copy reference ID" aria-label={`Copy reference ID for ${record.name}`}>{copiedReference === referenceCode ? <Check size={17} /> : <Copy size={17} />}</button>}
-                <button type="button" onClick={() => setLeadershipTarget({ label: record.name, path })} className="mr-3 rounded-lg p-2 text-slate-400 hover:bg-yellow-500/15 hover:text-yellow-600" title={`View ${record.name} leadership`} aria-label={`View ${record.name} leadership`}><UserRound size={17} /></button>
+                <button type="button" disabled={!referenceCode} onClick={() => setLeadershipTarget({ label: record.name, path, referenceCode })} className="mr-3 rounded-lg p-2 text-slate-400 hover:bg-yellow-500/15 hover:text-yellow-600 disabled:cursor-not-allowed disabled:opacity-40" title={referenceCode ? `View ${record.name} leadership` : 'Resolving location reference'} aria-label={`View ${record.name} leadership`}><UserRound size={17} /></button>
               </div>})}
             </div>
           ) : (
@@ -288,7 +288,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
           </div>
         </aside>
       )}
-      {leadershipTarget && <LocationLeadershipPanel countryCode="UG" path={leadershipTarget.path} label={leadershipTarget.label} theme={theme} onClose={() => setLeadershipTarget(null)} />}
+      {leadershipTarget && <LocationLeadershipPanel countryCode="UG" path={leadershipTarget.path} referenceCode={leadershipTarget.referenceCode} label={leadershipTarget.label} theme={theme} onClose={() => setLeadershipTarget(null)} />}
     </div>
   );
 };

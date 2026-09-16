@@ -111,8 +111,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout, userRole = 'C
         setHasAuthorizedProfile(true);
       } catch (error) {
         console.error('Unable to load the Firebase user profile', error);
-        setLoginError('Your account was authenticated, but its application profile could not be loaded.');
-        await signOutFirebase();
+        // A transient Firestore/network failure must not destroy a valid Firebase session.
+        // API authorization remains authoritative and continues to enforce the real role.
+        const session = await getCurrentApiSession().catch(() => null);
+        const roleMap: Record<ApplicationRole, string> = {
+          admin: 'Administrator', country_admin: 'Country Administrator', contributor: 'Contributor',
+          developer: 'Developer', manufacturer: 'Manufacturer', financial_institution: 'Financial Institution',
+        };
+        const fallbackRole = session?.isOwner ? 'Administrator' : session?.role ? roleMap[session.role] : 'Contributor';
+        setDashboardRole(fallbackRole);
+        setUser((current) => ({
+          ...current,
+          id: authenticatedUser.uid,
+          name: authenticatedUser.displayName || authenticatedUser.email?.split('@')[0] || current.name,
+          email: authenticatedUser.email || current.email,
+          role: fallbackRole,
+          avatar: authenticatedUser.photoURL || current.avatar,
+        }));
+        setActiveView(fallbackRole === 'Developer' ? 'settings-api' : 'countries-map');
+        setLoginError('Some profile details could not be refreshed. Your signed-in session has been preserved.');
+        setHasAuthorizedProfile(true);
       } finally {
         setIsAuthReady(true);
       }

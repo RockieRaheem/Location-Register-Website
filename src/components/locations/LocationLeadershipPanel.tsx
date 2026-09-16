@@ -7,10 +7,10 @@ import {
   type LeadershipAudit, type LocationLeader, type ResolvedLocation,
 } from '../../services/locationLeadershipService';
 
-interface Props { countryCode: string; path: string[]; label: string; theme: Theme; onClose: () => void; }
+interface Props { countryCode: string; path: string[]; referenceCode?: string; label: string; theme: Theme; onClose: () => void; }
 const blank = { fullName: '', title: '', email: '', phone: '', organization: '', biography: '', termStartedOn: '' };
 
-const LocationLeadershipPanel: React.FC<Props> = ({ countryCode, path, label, theme, onClose }) => {
+const LocationLeadershipPanel: React.FC<Props> = ({ countryCode, path, referenceCode, label, theme, onClose }) => {
   const [location, setLocation] = useState<ResolvedLocation | null>(null);
   const [leader, setLeader] = useState<LocationLeader | null>(null);
   const [audit, setAudit] = useState<LeadershipAudit[]>([]);
@@ -26,20 +26,21 @@ const LocationLeadershipPanel: React.FC<Props> = ({ countryCode, path, label, th
     let active = true;
     (async () => {
       try {
-        const resolved = await resolveLocationPath(countryCode, path);
+        const resolved = referenceCode ? null : await resolveLocationPath(countryCode, path);
+        const canonicalReference = referenceCode || resolved!.referenceCode;
         const [leadership, session] = await Promise.all([
-          getLocationLeadership(resolved.referenceCode), getCurrentApiSession(),
+          getLocationLeadership(canonicalReference), getCurrentApiSession(),
         ]);
-        const history = await getLocationLeadershipHistory(resolved.referenceCode).catch(() => ({ assignments: [], audit: [] }));
+        const history = await getLocationLeadershipHistory(canonicalReference).catch(() => ({ assignments: [], audit: [] }));
         if (!active) return;
-        setLocation(resolved); setLeader(leadership.leader); setAudit(history.audit);
+        setLocation(leadership.location || resolved); setLeader(leadership.leader); setAudit(history.audit);
         setEditable(['admin', 'country_admin', 'contributor'].includes(session.role));
         if (leadership.leader) setForm({ ...blank, ...leadership.leader });
       } catch (caught) { if (active) setError(caught instanceof Error ? caught.message : 'Unable to load leadership.'); }
       finally { if (active) setLoading(false); }
     })();
     return () => { active = false; };
-  }, [countryCode, path.join('|')]);
+  }, [countryCode, path.join('|'), referenceCode]);
 
   const save = async (event: React.FormEvent) => {
     event.preventDefault();
