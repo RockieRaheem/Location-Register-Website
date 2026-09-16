@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft, ArrowRight, Check, ChevronRight, Home, Map, MapPin, Search, UserRound, X,
+  ArrowLeft, ArrowRight, Check, ChevronRight, Copy, Home, Map, MapPin, Search, UserRound, X,
 } from 'lucide-react';
 import { Theme } from '../../types';
 import {
@@ -14,6 +14,7 @@ import {
 } from '../../data/locations/ugandaAdminHierarchy';
 import { UGANDA_DISTRICTS_DATA } from '../../data/maps/generated/ugandaDistrictsData';
 import LocationLeadershipPanel from './LocationLeadershipPanel';
+import { resolveLocationPaths } from '../../services/locationLeadershipService';
 
 interface UgandaHierarchyExplorerProps {
   districtName: string;
@@ -43,6 +44,8 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
   const [village, setVillage] = useState<UgandaVillageNode | null>(null);
   const [query, setQuery] = useState('');
   const [leadershipTarget, setLeadershipTarget] = useState<{ label: string; path: string[] } | null>(null);
+  const [referenceByPath, setReferenceByPath] = useState<Record<string, string>>({});
+  const [copiedReference, setCopiedReference] = useState<string | null>(null);
   const dark = theme === 'dark';
   const district = useMemo(() => getElectoralCommissionDistrict(districtName), [districtName]);
   const regionName = UGANDA_DISTRICTS_DATA[districtName]?.region || 'Region not specified';
@@ -146,6 +149,30 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
     : level === 'parishes'
       ? [...districtPath, constituencyName || '', subcountyName || ''].filter(Boolean)
       : [...districtPath, constituencyName || '', subcountyName || '', parish?.name || ''].filter(Boolean);
+  const recordPaths = records.map((record) => level === 'subcounties'
+    ? [...districtPath, record.secondary, record.name]
+    : level === 'parishes'
+      ? [...districtPath, constituencyName || '', subcountyName || '', record.name].filter(Boolean)
+      : [...districtPath, constituencyName || '', subcountyName || '', parish?.name || '', record.name].filter(Boolean));
+  const mappingSignature = [currentPath, ...recordPaths].map((path) => path.join('\u001f')).join('\u001e');
+
+  useEffect(() => {
+    let active = true;
+    const paths = mappingSignature.split('\u001e').filter(Boolean).map((entry) => entry.split('\u001f'));
+    setReferenceByPath({});
+    resolveLocationPaths('UG', paths).then((items) => {
+      if (!active) return;
+      setReferenceByPath(Object.fromEntries(items.filter((item) => item.location).map((item) => [item.path.join('\u001f'), item.location!.referenceCode])));
+    }).catch(() => { if (active) setReferenceByPath({}); });
+    return () => { active = false; };
+  }, [mappingSignature]);
+
+  const copyReference = async (referenceCode: string) => {
+    await navigator.clipboard.writeText(referenceCode);
+    setCopiedReference(referenceCode);
+    window.setTimeout(() => setCopiedReference((current) => current === referenceCode ? null : current), 1500);
+  };
+  const currentReference = referenceByPath[currentPath.join('\u001f')];
 
   return (
     <div className={`absolute inset-0 z-40 flex flex-col ${dark ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-950'}`}>
@@ -180,6 +207,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
                 {level === 'parishes' && subcountyName}
                 {level === 'villages' && parish?.name}
               </h1>
+              {currentReference && <button type="button" onClick={() => void copyReference(currentReference)} className="mt-2 inline-flex items-center gap-2 rounded-md bg-slate-500/10 px-2.5 py-1.5 font-mono text-xs text-slate-500 hover:text-yellow-600" title="Copy permanent reference ID">{currentReference}{copiedReference === currentReference ? <Check size={13} /> : <Copy size={13} />}</button>}
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
                 Browse the official {pluralLabel(level)}. Select one record to continue deeper into the hierarchy.
               </p>
@@ -213,21 +241,20 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
           {records.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {records.map((record, index) => {
-                const path = level === 'subcounties'
-                  ? [...districtPath, record.secondary, record.name]
-                  : level === 'parishes'
-                    ? [...districtPath, constituencyName || '', subcountyName || '', record.name].filter(Boolean)
-                    : [...districtPath, constituencyName || '', subcountyName || '', parish?.name || '', record.name].filter(Boolean);
+                const path = recordPaths[index];
+                const referenceCode = referenceByPath[path.join('\u001f')];
                 return <div key={record.id} className={`group flex min-w-0 items-center rounded-xl border transition-all ${dark ? 'border-slate-800 bg-slate-900/70 hover:border-slate-600 hover:bg-slate-900' : 'border-slate-200 bg-white hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md'}`}>
                 <button type="button" onClick={() => selectRecord(record)} className="flex min-w-0 flex-1 items-center gap-3 p-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500">
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-semibold tabular-nums ${dark ? 'bg-slate-800 text-slate-400' : 'bg-slate-100 text-slate-500'}`}>{String(index + 1).padStart(2, '0')}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold" title={record.name}>{record.name}</span>
                     <span className="mt-1 block truncate text-xs text-slate-500">{record.type}{record.secondary ? ` · ${record.secondary}` : ''}</span>
+                    {referenceCode && <span className="mt-1 block truncate font-mono text-[10px] text-slate-400" title={referenceCode}>{referenceCode}</span>}
                     {record.count != null && <span className="mt-2 block text-xs font-medium text-slate-500">{record.count.toLocaleString()} {record.countLabel}</span>}
                   </span>
                   <ArrowRight size={16} className="shrink-0 text-slate-400 transition-transform group-hover:translate-x-0.5" />
                 </button>
+                {referenceCode && <button type="button" onClick={() => void copyReference(referenceCode)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-500/10 hover:text-yellow-600" title="Copy reference ID" aria-label={`Copy reference ID for ${record.name}`}>{copiedReference === referenceCode ? <Check size={17} /> : <Copy size={17} />}</button>}
                 <button type="button" onClick={() => setLeadershipTarget({ label: record.name, path })} className="mr-3 rounded-lg p-2 text-slate-400 hover:bg-yellow-500/15 hover:text-yellow-600" title={`View ${record.name} leadership`} aria-label={`View ${record.name} leadership`}><UserRound size={17} /></button>
               </div>})}
             </div>

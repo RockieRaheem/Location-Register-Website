@@ -10,6 +10,7 @@ describe('Any-Location OpenAPI contract', () => {
       '/countries/{countryCode}/locations',
       '/locations/{referenceCode}',
       '/countries/{countryCode}/resolve-location',
+      '/countries/{countryCode}/resolve-locations',
       '/locations/{referenceCode}/api',
       '/locations/{referenceCode}/children',
       '/locations/{referenceCode}/subtree',

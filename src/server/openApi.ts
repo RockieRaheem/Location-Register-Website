@@ -71,6 +71,9 @@ export const locationApiOpenApi = {
     '/countries/{countryCode}/resolve-location': {
       get: { summary: 'Resolve one location from its complete hierarchy path', operationId: 'resolveLocationPath', parameters: [{ name: 'countryCode', in: 'path', required: true, schema: { type: 'string' } }, { name: 'path', in: 'query', required: true, schema: { type: 'string' }, description: 'Pipe-delimited names from the country root to the target.' }], responses: { '200': { description: 'Exactly resolved location.' }, ...errorResponses } },
     },
+    '/countries/{countryCode}/resolve-locations': {
+      post: { summary: 'Map up to 500 complete hierarchy paths to immutable reference codes', operationId: 'resolveLocationPaths', parameters: [{ name: 'countryCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Path-to-location mappings; unmatched paths contain a null location.' }, ...errorResponses } },
+    },
     '/locations/{referenceCode}': {
       get: { summary: 'Get one location', operationId: 'getLocation', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Location and discoverable links.' }, ...errorResponses } },
     },

@@ -251,6 +251,26 @@ async function startServer() {
     }
   });
 
+  app.post('/api/v1/countries/:countryCode/resolve-locations', (request, response) => {
+    try {
+      if (!requireCountryRead(request, response)) return;
+      if (!Array.isArray(request.body.paths) || request.body.paths.length < 1 || request.body.paths.length > 500) {
+        return response.status(400).json({ message: 'paths must contain between 1 and 500 hierarchy paths.' });
+      }
+      const items = request.body.paths.map((path: unknown, index: number) => {
+        if (!Array.isArray(path) || path.length < 1 || path.length > 12 || path.some((name) => typeof name !== 'string' || !name.trim())) {
+          throw new Error(`paths[${index}] must contain 1 to 12 non-empty location names`);
+        }
+        const names = path.map(String);
+        const location = locationDatabase.resolveLocationPath(routeParam(request, 'countryCode'), names);
+        return { path: names, location: location && canReadLocation(request, location) ? location : null };
+      });
+      return response.json({ items });
+    } catch (error) {
+      return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to resolve location paths' });
+    }
+  });
+
   app.post('/api/v1/countries/:countryCode/locations', authorize('contribute', (request) => routeParam(request, 'countryCode')), (request, response) => {
     try {
       const parent = locationDatabase.getLocationByReferenceCode(String(request.body.parentReferenceCode || ''));

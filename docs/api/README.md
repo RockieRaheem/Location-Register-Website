@@ -48,6 +48,18 @@ npm run firebase:set-role -- --email=manager@example.com --role=country_admin --
 - `uid` remains the internal relational identifier.
 - `location_external_ids` continues to map codes issued by outside authorities such as `UG_ADMIN_PCODE`.
 
+Names alone are not globally unique: different districts can contain parishes or villages with the same name. Name-to-code lookup therefore accepts the complete country-to-location path. For bulk mapping, send:
+
+```json
+{
+  "paths": [
+    ["Uganda", "Central", "KAMPALA", "KAWEMPE DIVISION SOUTH", "KAWEMPE DIVISION", "Bwaise II", "KATOOGO"]
+  ]
+}
+```
+
+Each result repeats the supplied path and returns the matched location containing both `name` and `referenceCode`. Unmatched paths return `location: null`; the API never guesses between similarly named places. To map a code back to its name and hierarchy metadata, call `GET /api/v1/locations/{referenceCode}`.
+
 ## Core endpoints
 
 | Method | Endpoint | Minimum permission |
@@ -60,6 +72,7 @@ npm run firebase:set-role -- --email=manager@example.com --role=country_admin --
 | `POST` | `/api/v1/countries/{countryCode}/locations` | Contributor for country |
 | `GET` | `/api/v1/locations/{referenceCode}` | Read |
 | `GET` | `/api/v1/countries/{countryCode}/resolve-location?path=Uganda%7CCentral%7CKampala` | Resolve an unambiguous full hierarchy path |
+| `POST` | `/api/v1/countries/{countryCode}/resolve-locations` | Map up to 500 full hierarchy paths to reference IDs in one request |
 | `GET` | `/api/v1/locations/{referenceCode}/ancestors` | Read |
 | `GET` | `/api/v1/locations/{referenceCode}/descendants` | Read |
 | `GET` | `/api/v1/locations/{referenceCode}/children` | Direct children in the assigned scope |

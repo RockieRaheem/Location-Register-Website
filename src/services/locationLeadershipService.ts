@@ -37,6 +37,13 @@ export async function resolveLocationPath(countryCode: string, path: string[]): 
   return authenticatedApiRequest(`/api/v1/countries/${encodeURIComponent(countryCode)}/resolve-location?${query}`);
 }
 
+export async function resolveLocationPaths(countryCode: string, paths: string[][]): Promise<Array<{ path: string[]; location: ResolvedLocation | null }>> {
+  const result = await authenticatedApiRequest<{ items: Array<{ path: string[]; location: ResolvedLocation | null }> }>(`/api/v1/countries/${encodeURIComponent(countryCode)}/resolve-locations`, {
+    method: 'POST', body: JSON.stringify({ paths }),
+  });
+  return result.items;
+}
+
 export function getLocationLeadership(referenceCode: string): Promise<{ location: ResolvedLocation; leader: LocationLeader | null }> {
   return authenticatedApiRequest(`/api/v1/locations/${encodeURIComponent(referenceCode)}/leader`);
 }
