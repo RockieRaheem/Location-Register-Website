@@ -12,7 +12,7 @@ interface CountriesMapPageProps {
 }
 
 const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regionalLevels, countries }) => {
-    const [selectedCountryId, setSelectedCountryId] = useState<string | null>(null);
+    const [selectedCountry, setSelectedCountry] = useState<{ id: string; referenceCode?: string } | null>(null);
     const locationCounts = useMemo(() => ({
         UG: UGANDA_ELECTORAL_COMMISSION_2022_METADATA.statistics.uniqueFullVillagePaths,
     }), []);
@@ -27,7 +27,7 @@ const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regio
 
     return (
         <div className={`h-[calc(100dvh-112px)] min-h-[560px] w-full flex flex-col rounded-xl relative overflow-hidden border ${theme === 'dark' ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white'}`}>
-            {!selectedCountryId && (
+            {!selectedCountry && (
                 <header className={`z-10 shrink-0 border-b px-4 py-4 sm:px-6 ${theme === 'dark' ? 'border-slate-800 bg-slate-950' : 'border-slate-200 bg-white'}`}>
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
                         <div>
@@ -40,12 +40,13 @@ const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regio
             )}
             {/* Map Container */}
             <div className="relative w-full h-full flex-1 min-h-0 flex items-center justify-center">
-                {selectedCountryId ? (
+                {selectedCountry ? (
                     <CountryDetailMap 
-                        countryId={selectedCountryId} 
+                        countryId={selectedCountry.id}
+                        countryReferenceCode={selectedCountry.referenceCode}
                         shops={shops} 
                         theme={theme} 
-                        onBack={() => setSelectedCountryId(null)} 
+                        onBack={() => setSelectedCountry(null)}
                     />
                 ) : (
                     <AfricaMap 
@@ -55,7 +56,7 @@ const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regio
                         theme={theme}
                         countries={countries}
                         locationCounts={locationCounts}
-                        onCountryClick={(id) => setSelectedCountryId(id)}
+                        onCountryClick={(id, _name, referenceCode) => setSelectedCountry({ id, referenceCode })}
                     />
                 )}
             </div>

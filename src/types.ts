@@ -329,6 +329,8 @@ export interface Country {
   uid?: string;
   /** UID of the Country node at the root of this country's location tree. */
   rootLocationUid?: string;
+  /** Immutable public identifier of the country's root location node. */
+  referenceCode?: string;
   name: string;
   continent: string;
   economicZones: string[];

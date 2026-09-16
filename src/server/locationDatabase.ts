@@ -377,6 +377,8 @@ export class LocationDatabase {
     if (!row) return null;
     const profile = parseJson<Partial<Country>>(row.profile_json, {});
     const levels = this.getHierarchy(String(row.iso2)).levels;
+    const rootLocation = this.db.prepare('SELECT reference_code FROM locations WHERE uid = ?')
+      .get(row.root_location_uid) as SqlRow | undefined;
     const adminLevels = (this.db.prepare(`
       SELECT location.uid, location.legacy_id, location.name, location.depth,
              location.parent_uid, location.metadata_json
@@ -407,6 +409,7 @@ export class LocationDatabase {
       id: Number(row.legacy_id),
       uid: String(row.uid),
       rootLocationUid: String(row.root_location_uid),
+      referenceCode: rootLocation ? String(rootLocation.reference_code) : undefined,
       name: String(row.name),
       countryCode: String(row.iso2),
       adminLevels,

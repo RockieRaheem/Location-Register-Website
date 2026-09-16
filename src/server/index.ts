@@ -38,7 +38,7 @@ if (fs.existsSync(candidateEditionPath)) {
     .run(`ug-ec-${candidate.metadata.sourceYear}-${candidate.metadata.sourceSha256.slice(0, 12)}`, String(candidate.metadata.sourceYear), candidate.metadata.title, candidate.metadata.sourceSha256, JSON.stringify(candidate.metadata.statistics), 'Partial demarcated electoral-area layer; not a complete replacement administrative hierarchy.');
 }
 
-if (locationDatabase.getStatistics().countries === 0) {
+{
   const legacyStorePath = path.join(process.cwd(), 'countries-store.json');
   let countriesToMigrate = allAfricanCountries;
   if (fs.existsSync(legacyStorePath)) {
@@ -49,7 +49,10 @@ if (locationDatabase.getStatistics().countries === 0) {
       console.error('Unable to read countries-store.json; loading configured defaults instead:', error);
     }
   }
-  for (const country of countriesToMigrate) locationDatabase.syncManagedLocations(country);
+  const registeredCodes = new Set(locationDatabase.getCountries().map((country) => country.countryCode));
+  for (const country of countriesToMigrate) {
+    if (!registeredCodes.has(country.countryCode)) locationDatabase.syncManagedLocations(country);
+  }
 }
 
 function integerQuery(value: unknown, fallback?: number): number | undefined {

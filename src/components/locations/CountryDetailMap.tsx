@@ -11,6 +11,7 @@ import { Theme, Shop } from '../../types';
 import { ArrowLeft, Plus, Minus, Maximize2, RotateCcw, ChevronRight } from 'lucide-react';
 import CountryMapModal from './CountryMapModal';
 import UgandaHierarchyExplorer from './UgandaHierarchyExplorer';
+import { resolveLocationPaths } from '../../services/locationLeadershipService';
 
 const KAMPALA_DIVISIONS = [
   {
@@ -261,12 +262,13 @@ const DAR_ES_SALAAM_LEVELS = [
 
 interface CountryDetailMapProps {
   countryId: string;
+  countryReferenceCode?: string;
   shops: Shop[];
   theme: Theme;
   onBack: () => void;
 }
 
-const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, theme, onBack }) => {
+const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, countryReferenceCode, shops, theme, onBack }) => {
   const mapData = countryDetailedMaps[countryId];
   const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
   const [drillDownDistrict, setDrillDownDistrict] = useState<string | null>(null);
@@ -285,6 +287,7 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
     initialSubcounty?: string | null;
   } | null>(null);
   const [ugandaExplorerDistrict, setUgandaExplorerDistrict] = useState<string | null>(null);
+  const [districtReferences, setDistrictReferences] = useState<Record<string, string>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -321,6 +324,17 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
       };
     }).sort((a, b) => a.sourceName.localeCompare(b.sourceName));
   }, [countryId]);
+
+  useEffect(() => {
+    if (countryId !== 'UG' || ugandaDistrictsList.length === 0) return;
+    let active = true;
+    const paths = ugandaDistrictsList.map((district) => ['Uganda', district.region, district.sourceName]);
+    resolveLocationPaths('UG', paths).then((items) => {
+      if (!active) return;
+      setDistrictReferences(Object.fromEntries(items.filter((item) => item.location).map((item) => [item.path.at(-1)!, item.location!.referenceCode])));
+    }).catch(() => { if (active) setDistrictReferences({}); });
+    return () => { active = false; };
+  }, [countryId, ugandaDistrictsList]);
 
   const currentUgandaDistrictData: UgandaDistrictMapData | null = useMemo(() => {
     if (countryId !== 'UG' || !drillDownDistrict) return null;
@@ -533,6 +547,11 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
             theme === 'dark' ? 'bg-slate-900/90 border-slate-700 text-slate-200' : 'bg-white/90 border-slate-200 text-slate-800'
           }`}>
             <span className="font-semibold">{countryDisplayName}</span>
+            <span className={`max-w-[250px] truncate rounded px-2 py-0.5 font-mono text-[9px] ${theme === 'dark' ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`} title={drillDownDistrict ? (districtReferences[getElectoralCommissionDistrict(drillDownDistrict)?.name || drillDownDistrict] || countryReferenceCode) : countryReferenceCode}>
+              {drillDownDistrict
+                ? (districtReferences[getElectoralCommissionDistrict(drillDownDistrict)?.name || drillDownDistrict] || 'Reference pending')
+                : (countryReferenceCode || 'Reference pending')}
+            </span>
             {drillDownDistrict && (
               <>
                 <ChevronRight size={14} className="opacity-40" />
@@ -1174,6 +1193,11 @@ const CountryDetailMap: React.FC<CountryDetailMapProps> = ({ countryId, shops, t
           <div className="text-sm font-black leading-tight break-words">{hoveredRegion}</div>
           <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-yellow-500">
             {drillDownDivision ? 'Parish / Ward' : drillDownDistrict ? 'Sub-County / Division' : countryId === 'UG' ? 'District / City' : 'Administrative area'}
+          </div>
+          <div className="mt-2 border-t border-current/10 pt-2 font-mono text-[10px] break-all">
+            {countryId === 'UG' && !drillDownDistrict
+              ? (districtReferences[getElectoralCommissionDistrict(hoveredRegion)?.name || hoveredRegion] || 'Reference ID unavailable')
+              : (countryReferenceCode || 'Reference ID available after selecting this area')}
           </div>
         </div>
       )}
