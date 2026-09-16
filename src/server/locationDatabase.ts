@@ -571,15 +571,17 @@ export class LocationDatabase {
     return row ? this.rowToLeader(row) : null;
   }
 
-  getLeadershipHistory(locationUid: string): { assignments: LocationLeaderRecord[]; audit: LeadershipAuditRecord[] } {
+  getLeadershipHistory(locationUid: string, limit = 100, offset = 0): { assignments: LocationLeaderRecord[]; audit: LeadershipAuditRecord[]; total: number; limit: number; offset: number } {
     const assignments = (this.db.prepare(`
       SELECT * FROM location_leader_assignments WHERE location_uid = ?
       ORDER BY is_current DESC, coalesce(term_started_on, created_at) DESC
     `).all(locationUid) as SqlRow[]).map((row) => this.rowToLeader(row));
+    const pageLimit = clampLimit(limit); const pageOffset = Math.max(offset, 0);
+    const total = Number((this.db.prepare('SELECT COUNT(*) AS count FROM location_leadership_audit_log WHERE location_uid = ?').get(locationUid) as SqlRow).count);
     const audit = (this.db.prepare(`
       SELECT * FROM location_leadership_audit_log WHERE location_uid = ?
-      ORDER BY occurred_at DESC, id DESC
-    `).all(locationUid) as SqlRow[]).map((row) => ({
+      ORDER BY occurred_at DESC, id DESC LIMIT ? OFFSET ?
+    `).all(locationUid, pageLimit, pageOffset) as SqlRow[]).map((row) => ({
       id: Number(row.id),
       assignmentUid: row.assignment_uid ? String(row.assignment_uid) : undefined,
       locationUid: String(row.location_uid),
@@ -591,7 +593,7 @@ export class LocationDatabase {
       after: parseJson<LocationLeaderRecord | null>(row.after_json, null),
       occurredAt: String(row.occurred_at),
     }));
-    return { assignments, audit };
+    return { assignments, audit, total, limit: pageLimit, offset: pageOffset };
   }
 
   saveCurrentLeader(locationUid: string, input: LocationLeaderInput, actor: LeadershipActor): LocationLeaderRecord {

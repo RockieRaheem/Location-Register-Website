@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-09-16T08:26:00.389Z",
+  "sourceEdition": "2025",
+  "total": 16490,
+  "exact": 10517,
+  "unmatched": 5973,
+  "exactPercent": 63.78,
+  "warning": "Unmatched does not mean new. Spelling, hierarchy, partial demarcation, and extraction differences require human review."
+}

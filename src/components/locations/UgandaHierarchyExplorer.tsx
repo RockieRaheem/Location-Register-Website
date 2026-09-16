@@ -190,7 +190,7 @@ const UgandaHierarchyExplorer: React.FC<UgandaHierarchyExplorerProps> = ({
               </React.Fragment>
             ))}
           </nav>
-          <span className="hidden text-xs font-medium text-slate-500 lg:block">Electoral Commission 2022</span>
+          <span className="hidden text-xs font-medium text-slate-500 lg:block">Administrative registry · EC 2025 edition tracked</span>
         </div>
       </header>
 

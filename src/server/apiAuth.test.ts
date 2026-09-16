@@ -45,4 +45,13 @@ describe('API role permissions', () => {
     expect(canReadLocation(user, { uid: 'kampala-child', countryCode: 'UG' }, (uid) => uid === 'kampala-child')).toBe(true);
     expect(canReadLocation(user, { uid: 'gulu', countryCode: 'UG' }, () => false)).toBe(false);
   });
+
+  it('requires explicit scopes and country assignments for machine identities', () => {
+    const machine: ApiPrincipal = { ...principal('developer', ['UG']), identityType: 'machine', clientId: 'client-1', scopes: ['locations:read'] };
+    expect(hasApiPermission(machine, 'read', 'UG')).toBe(true);
+    expect(hasApiPermission(machine, 'read', 'KE')).toBe(false);
+    expect(hasApiPermission(machine, 'contribute', 'UG')).toBe(false);
+    expect(canReadLocation(machine, { uid: 'kampala', countryCode: 'UG' }, () => false)).toBe(true);
+    expect(canReadLocation({ ...machine, scopes: [] }, { uid: 'kampala', countryCode: 'UG' }, () => false)).toBe(false);
+  });
 });

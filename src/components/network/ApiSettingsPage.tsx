@@ -8,13 +8,15 @@ import {
   type LocationApiDescriptor,
 } from '../../services/userAdministrationService';
 import ApiScopeBuilder from './ApiScopeBuilder';
+import ApiClientManagement from './ApiClientManagement';
 
 interface ApiSettingsPageProps { theme: Theme; currentUser: User; }
-type Tab = 'builder' | 'overview' | 'authentication' | 'endpoints' | 'examples' | 'errors';
+type Tab = 'builder' | 'overview' | 'authentication' | 'clients' | 'endpoints' | 'examples' | 'errors';
 
 const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser }) => {
   const [descriptors, setDescriptors] = useState<LocationApiDescriptor[]>([]);
   const [hasGlobalRead, setHasGlobalRead] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('builder');
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,7 @@ const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser })
     const load = async () => {
       try {
         const session = await getCurrentApiSession();
+        setIsOwner(session.isOwner);
         setHasGlobalRead(session.role === 'admin' || session.assignedLocationReferenceCodes.length === 0);
         setDescriptors(await Promise.all(session.assignedLocationReferenceCodes.map(getLocationApiDescriptor)));
       } catch (loadError) {
@@ -62,6 +65,7 @@ const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser })
     { id: 'builder', label: 'Choose Data', icon: <MapPin size={15} /> },
     { id: 'overview', label: 'Overview', icon: <BookOpen size={15} /> },
     { id: 'authentication', label: 'Authentication', icon: <KeyRound size={15} /> },
+    ...(isOwner ? [{ id: 'clients' as Tab, label: 'Service Clients', icon: <ShieldCheck size={15} /> }] : []),
     { id: 'endpoints', label: 'Endpoints', icon: <Braces size={15} /> },
     { id: 'examples', label: 'Examples', icon: <Code2 size={15} /> },
     { id: 'errors', label: 'Errors', icon: <ShieldCheck size={15} /> },
@@ -83,6 +87,8 @@ const ApiSettingsPage: React.FC<ApiSettingsPageProps> = ({ theme, currentUser })
       </nav>
 
       {error && <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm font-semibold text-red-500">{error}</div>}
+
+      {activeTab === 'clients' && isOwner && <ApiClientManagement theme={theme} />}
 
       {activeTab === 'builder' && <ApiScopeBuilder theme={theme} baseUrl={baseUrl} hasGlobalRead={hasGlobalRead} assignedScopes={descriptors} />}
 

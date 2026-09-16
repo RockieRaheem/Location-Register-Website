@@ -2,6 +2,8 @@
 
 The signed-in dashboard includes a dedicated **API Access** developer portal with live scope discovery, token generation, endpoint URLs, cURL/JavaScript/Python examples, pagination guidance, and error documentation. The same contract is available to tools at `GET /api/v1/openapi.json` as OpenAPI 3.1 JSON.
 
+Production controls—including machine clients, hashed credentials, scopes, quotas, request tracing, idempotency, exports, webhooks, structured errors and version policy—are documented in [`production-api.md`](./production-api.md).
+
 ## Authentication
 
 All `/api` routes require a verified Firebase user and a short-lived Firebase ID token:
@@ -69,6 +71,8 @@ Each result repeats the supplied path and returns the matched location containin
 | `GET` | `/api/v1/countries/{countryCode}/schema` | Read |
 | `PUT` | `/api/v1/countries/{countryCode}/schema` | Country admin for country |
 | `GET` | `/api/v1/countries/{countryCode}/locations` | Read |
+| `GET` | `/api/v1/countries/{countryCode}/export?format=json` | Paginated JSON, CSV, or GeoJSON export |
+| `GET` | `/api/v1/dataset-editions?countryCode=UG` | Source editions and publication status |
 | `POST` | `/api/v1/countries/{countryCode}/locations` | Contributor for country |
 | `GET` | `/api/v1/locations/{referenceCode}` | Read |
 | `GET` | `/api/v1/countries/{countryCode}/resolve-location?path=Uganda%7CCentral%7CKampala` | Resolve an unambiguous full hierarchy path |

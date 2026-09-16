@@ -136,6 +136,11 @@ try {
   const statistics = database.getStatistics();
   const geometryCount = Number((database.db.prepare('SELECT COUNT(*) AS count FROM location_geometries').get() as Row).count);
   const externalIdCount = Number((database.db.prepare(`SELECT COUNT(*) AS count FROM location_external_ids WHERE authority = 'UG_ADMIN_PCODE'`).get() as Row).count);
+  const apiPlatformTables = ['api_clients', 'api_credentials', 'api_usage_daily', 'api_idempotency_records', 'webhook_subscriptions', 'webhook_deliveries', 'location_dataset_editions'];
+  for (const table of apiPlatformTables) {
+    if (!database.db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).get(table)) fail(`API platform table is missing: ${table}`);
+  }
+  const datasetEditions = Number((database.db.prepare('SELECT COUNT(*) AS count FROM location_dataset_editions').get() as Row).count);
   const report = {
     valid: true,
     databasePath,
@@ -145,6 +150,7 @@ try {
     geospatial: { geometries: geometryCount, externalIds: externalIdCount },
     referenceCodes: { valid: true, unique: true, count: statistics.locations },
     apiDelivery: { levelZeroFilter: true, kampalaReferenceResolved: true, kampalaDescendants: kampalaDescendants.total, villageDataReturned: true },
+    apiPlatform: { tables: apiPlatformTables.length, datasetEditions },
     sourceSha256: UGANDA_ELECTORAL_COMMISSION_2022_METADATA.sourceSha256,
     punctuationDistinctVillagesPreserved: collisionNames,
   };

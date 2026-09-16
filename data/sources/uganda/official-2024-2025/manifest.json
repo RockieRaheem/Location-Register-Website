@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-09-16T07:01:07.811Z",
+  "warning": "Extracted text is evidence input, not automatically published hierarchy data. Structural reconciliation and human review are required.",
+  "documents": [
+    {
+      "file": "Local Goverment Electoral Areas for display.pdf",
+      "authority": "Uganda Electoral Commission",
+      "edition": "2025",
+      "role": "electoral-areas",
+      "originalPath": "data/sources/uganda/official-2024-2025/pdf/Local Goverment Electoral Areas for display.pdf",
+      "extractedTextPath": "data/sources/uganda/official-2024-2025/Local Goverment Electoral Areas for display.txt",
+      "bytes": 8317441,
+      "pages": 1531,
+      "characters": 1739113,
+      "sha256": "b1d7f4867b21bc2d5e1ff4dcfb3dfb65dd500c521f8bb806129044d8a5d78913",
+      "extractedAt": "2026-09-16T07:00:24.356Z"
+    },
+    {
+      "file": "Split by village Local Goverment Electoral Areas for display.pdf",
+      "authority": "Uganda Electoral Commission",
+      "edition": "2025",
+      "role": "village-electoral-areas",
+      "originalPath": "data/sources/uganda/official-2024-2025/pdf/Split by village Local Goverment Electoral Areas for display.pdf",
+      "extractedTextPath": "data/sources/uganda/official-2024-2025/Split by village Local Goverment Electoral Areas for display.txt",
+      "bytes": 7375108,
+      "pages": 2402,
+      "characters": 1194381,
+      "sha256": "3b43920da9e605a9743a96cc6eece9b81eb865ae8ce3acf548d472e90fb087fe",
+      "extractedAt": "2026-09-16T07:00:48.760Z"
+    },
+    {
+      "file": "Press Release on the Display of Demarcated Local Govt Council Electoral Areas January 2025.pdf",
+      "authority": "Uganda Electoral Commission",
+      "edition": "2025",
+      "role": "provenance",
+      "originalPath": "data/sources/uganda/official-2024-2025/pdf/Press Release on the Display of Demarcated Local Govt Council Electoral Areas January 2025.pdf",
+      "extractedTextPath": "data/sources/uganda/official-2024-2025/Press Release on the Display of Demarcated Local Govt Council Electoral Areas January 2025.txt",
+      "bytes": 349866,
+      "pages": 2,
+      "characters": 4820,
+      "sha256": "4dd240a9e00f27d647569838fe4af5451985a56f284cc3f2c0ac12791a8ac2b1",
+      "extractedAt": "2026-09-16T07:00:48.924Z"
+    },
+    {
+      "file": "Kigezi-Sub-Region-Census-2024-Report.pdf",
+      "authority": "Uganda Bureau of Statistics",
+      "edition": "2024",
+      "role": "census-validation",
+      "originalPath": "data/sources/uganda/official-2024-2025/pdf/Kigezi-Sub-Region-Census-2024-Report.pdf",
+      "extractedTextPath": "data/sources/uganda/official-2024-2025/Kigezi-Sub-Region-Census-2024-Report.txt",
+      "bytes": 15966083,
+      "pages": 334,
+      "characters": 419779,
+      "sha256": "24eb93f9b372d3c0b196cf41c2a67f1bd2265e416ec5f1af3639e1b8294b76b4",
+      "extractedAt": "2026-09-16T07:01:07.810Z"
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import { apiRoles, hasApiPermission, type ApiPermission, type ApiPrincipal, type
 
 export type { ApiPermission, ApiPrincipal, ApiRole } from './apiPolicy.ts';
 const principals = new WeakMap<Request, ApiPrincipal>();
+let apiKeyVerifier: ((key: string) => ApiPrincipal | null) | undefined;
 const projectId = process.env.FIREBASE_PROJECT_ID || 'any-location-36e76';
 const checkRevokedTokens = process.env.FIREBASE_CHECK_REVOKED_TOKENS === 'true';
 function configuredOwnerEmails(): Set<string> {
@@ -23,6 +24,13 @@ function bearerToken(request: Request): string | undefined {
 }
 
 export const authenticateApiRequest: RequestHandler = async (request, response, next) => {
+  const apiKey = request.header('x-api-key') || request.header('authorization')?.match(/^ApiKey\s+(.+)$/i)?.[1];
+  if (apiKey && apiKeyVerifier) {
+    const principal = apiKeyVerifier(apiKey.trim());
+    if (!principal) return response.status(401).json({ code: 'INVALID_API_KEY', message: 'The API key is invalid, expired, or revoked.' });
+    principals.set(request, principal);
+    return next();
+  }
   const token = bearerToken(request);
   if (!token) return response.status(401).json({ code: 'AUTHENTICATION_REQUIRED', message: 'Supply a Firebase ID token as a Bearer token.' });
   try {
@@ -38,12 +46,20 @@ export const authenticateApiRequest: RequestHandler = async (request, response, 
     const assignedLocationReferenceCodes = Array.isArray(decoded.assignedLocationReferenceCodes)
       ? decoded.assignedLocationReferenceCodes.map(String).map((value) => value.trim().toUpperCase()).filter(Boolean)
       : [];
-    principals.set(request, { uid: decoded.uid, email: decoded.email, role, assignedCountryCodes, assignedLocationReferenceCodes });
+    principals.set(request, { uid: decoded.uid, email: decoded.email, role, identityType: 'human', scopes: [], assignedCountryCodes, assignedLocationReferenceCodes });
     return next();
   } catch {
     return response.status(401).json({ code: 'INVALID_TOKEN', message: 'The Firebase ID token is invalid, expired, or revoked.' });
   }
 };
+
+export function configureApiKeyVerifier(verifier: (key: string) => ApiPrincipal | null): void {
+  apiKeyVerifier = verifier;
+}
+
+export function setApiPrincipal(request: Request, principal: ApiPrincipal): void {
+  principals.set(request, principal);
+}
 
 export function isOwnerRequest(request: Request): boolean {
   const email = apiPrincipal(request).email?.toLowerCase();

@@ -1,0 +1,335 @@
+{
+  "metadata": {
+    "title": "Uganda Electoral Commission demarcated local government electoral areas",
+    "sourceYear": 2025,
+    "sourceFileName": "Split by village Local Goverment Electoral Areas for display.pdf",
+    "sourceSha256": "3b43920da9e605a9743a96cc6eece9b81eb865ae8ce3acf548d472e90fb087fe",
+    "status": "candidate",
+    "hierarchyRule": "Parsed only from explicit district, constituency, subcounty, parish and village rows in the official EC 2025 display document.",
+    "statistics": {
+      "districtAndCityUnits": 136,
+      "subcounties": 1631,
+      "parishes": 2096,
+      "uniqueFullVillagePaths": 16490,
+      "globalUniqueVillageNames": 14448
+    }
+  },
+  "rejectedCount": 63,
+  "rejected": [
+    {
+      "page": 56,
+      "line": "IBARALIBI\tKYAKAMESE CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 56,
+      "line": "CHONGOYOMA\tKYAKAMESE CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 60,
+      "line": "NYAMUKONGO\tNYAMUKONGO WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 211,
+      "line": "KALUBANGA\tNAKASONGOLA EAST WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 211,
+      "line": "KANSIRYE\tNAKASONGOLA EAST WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 212,
+      "line": "BURULI QUARTER\tNAKASONGOLA CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 212,
+      "line": "NAKASONGOLA CENTRAL\tNAKASONGOLA CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 339,
+      "line": "DISPENSARY ZONE\tDISPENSARY WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 342,
+      "line": "ELNEST\tLWEBITAKULI CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 387,
+      "line": "BUKOMANSIMBI T.C\tBUKOMANSIMBI CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 387,
+      "line": "BUKOBA\tBUKOMANSIMBI CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 920,
+      "line": "BUBUTU TRADING CENTRE\tBUBUTU TOWN BOARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 920,
+      "line": "BUBITSA\tBUBUTU TOWN BOARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 921,
+      "line": "BULYULI\tBUBUTU TOWN BOARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 922,
+      "line": "SINGENGELO\tBUBUTU TOWN BOARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 991,
+      "line": "KYENGERA CENTRAL\tKYENGERA",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 998,
+      "line": "BUGIRI-KIWUULWE\tBWERENGA/BUKASA/KIWUUL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 999,
+      "line": "BUFULU\tBENDEGERE/NKUMBA",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1014,
+      "line": "NABWERU SOUTH I\tNABWERU SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1014,
+      "line": "NABWERU SOUTH II\tNABWERU SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1015,
+      "line": "NANSANA 7/8 I\tNANSANA 7/8 OCHIENG",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1015,
+      "line": "NANSANA-OCHIENG I\tNANSANA 7/8 OCHIENG",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1027,
+      "line": "KITOORO CENTRAL\tKITOORO CENTRAL/KIWAFU",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1027,
+      "line": "KIWAFU CENTRAL\tKIWAFU EAST/KIWAFU",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1054,
+      "line": "NABWERU SOUTH I\tNABWERU SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1054,
+      "line": "NABWERU SOUTH II\tNABWERU SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1058,
+      "line": "MASAJJA A\tMASAJJA A/KIBIRA",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1109,
+      "line": "KALOJUKA\tLOKITALAEBU SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1109,
+      "line": "KESIMEN\tLOKITALAEBU SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1143,
+      "line": "KATANGA/TOWNSHIP\tKATANGA/TOWNSHIP WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1143,
+      "line": "NANGOROMIT\tKATANGA/TOWNSHIP WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1143,
+      "line": "NAKAPIRIPIRIT / NAKAPIRIPIRIT TOWN COUNCIL / KATANGA/TOWNSHIP WARD",
+      "reason": "no village rows parsed"
+    },
+    {
+      "page": 1262,
+      "line": "BUGOBI\tBALAWOLI NORTHERN",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1262,
+      "line": "BALAWOLI T/CENTER\tBALAWOLI NORTHERN",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1326,
+      "line": "NAMUTUMBA A\tNAMUTUMBA CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1326,
+      "line": "KANGULUMO A\tNAMUTUMBA CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1359,
+      "line": "NAMAYINGO NORTH\tNAMAYINGO CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1359,
+      "line": "NAMAYINGO EAST\tNAMAYINGO CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1415,
+      "line": "KAKUNDWA\t<br /><b>Warning</b>:",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1428,
+      "line": "KAKONE\tMAHANGO-KAKONE-",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1453,
+      "line": "KYANJIMA\tNYARUKUNGU CALVERT",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1453,
+      "line": "KYARUGOMOKA\tNYARUKUNGU CALVERT",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1542,
+      "line": "DISPENSARY\tRWEBISENGO NORTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1542,
+      "line": "RWANGARA ROAD\tRWEBISENGO NORTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1702,
+      "line": "KAL B\tPABBO CENTRAL WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1702,
+      "line": "KAL A\tPABBO CENTRAL WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1702,
+      "line": "AMURU / PABBO TOWN COUNCIL / PABBO CENTRAL WARD",
+      "reason": "no village rows parsed"
+    },
+    {
+      "page": 1709,
+      "line": "ABINO\tADEROLONGO SOUTHERN",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1709,
+      "line": "ADYANGMONO\tADEROLONGO SOUTHERN",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1811,
+      "line": "OTENGOBWOME\tWII-ANAKA",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1827,
+      "line": "ALUMAR\tOCOYOLAMERO MAIN",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1828,
+      "line": "LAPERE CENTRAL\tOCOYOLAMERO MAIN",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1963,
+      "line": "KABURA\tRUBINDI CENTRAL WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 1963,
+      "line": "MUYENGA\tRUBINDI CENTRAL WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2047,
+      "line": "KICWAMBA\tSOUTHERN WARD-",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2064,
+      "line": "BIKUTO\tSOUTHERN WARD-",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2064,
+      "line": "BUTOGOTA-CENTRAL\tSOUTHERN WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2108,
+      "line": "KABEREBERE II\tKABEREBERE SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2108,
+      "line": "KYABUTOOTO\tKABEREBERE SOUTH WARD",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2170,
+      "line": "KASHENSHERO CENTRAL\tKASHENSHERO CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2170,
+      "line": "BUKARI\tKASHENSHERO CENTRAL",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2298,
+      "line": "KULIKULINGA SOUTH\tKULIKULINGA",
+      "reason": "unrecognized row shape"
+    },
+    {
+      "page": 2298,
+      "line": "KULIKULINGA NORTH\tKULIKULINGA",
+      "reason": "unrecognized row shape"
+    }
+  ]
+}

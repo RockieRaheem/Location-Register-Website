@@ -89,3 +89,21 @@ export async function updateRegisteredUserAccess(
     body: JSON.stringify(input),
   });
 }
+
+export interface MachineApiClient {
+  uid: string; name: string; description?: string; status: string; key_prefix?: string;
+  scopes: string[]; assignedCountryCodes: string[]; assignedLocationReferenceCodes: string[];
+  requests_per_minute: number; daily_quota: number; expires_at?: string; last_used_at?: string; created_at: string;
+}
+
+export async function listMachineApiClients(): Promise<MachineApiClient[]> {
+  const result = await authenticatedApiRequest<{ items: MachineApiClient[] }>('/api/v1/admin/api-clients'); return result.items;
+}
+
+export function createMachineApiClient(input: { name: string; description?: string; scopes: string[]; assignedCountryCodes: string[]; requestsPerMinute: number; dailyQuota: number; expiresAt?: string }): Promise<{ clientUid: string; apiKey: string; scopes: string[]; warning: string }> {
+  return authenticatedApiRequest('/api/v1/admin/api-clients', { method: 'POST', body: JSON.stringify(input) });
+}
+
+export function revokeMachineApiClient(uid: string): Promise<void> {
+  return authenticatedApiRequest(`/api/v1/admin/api-clients/${encodeURIComponent(uid)}/revoke`, { method: 'POST' });
+}

@@ -9,9 +9,10 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore';
 import { allAfricanCountries } from '../data/mockData.ts';
 import type { AdminLevelName, Country, LocationRecord } from '../types.ts';
 import { LocationDatabase, type NewLocationInput } from './locationDatabase.ts';
-import { apiPrincipal, authenticateApiRequest, authorize, authorizeOwner, isOwnerRequest } from './apiAuth.ts';
+import { apiPrincipal, authenticateApiRequest, authorize, authorizeOwner, configureApiKeyVerifier, isOwnerRequest } from './apiAuth.ts';
 import { apiRoles, canReadLocation as canPrincipalReadLocation, hasCountryWideRead as principalHasCountryWideRead, type ApiRole } from './apiPolicy.ts';
 import { locationApiOpenApi } from './openApi.ts';
+import { ApiPlatform } from './apiPlatform.ts';
 
 try {
   loadEnvFile(path.join(process.cwd(), '.env.local'));
@@ -23,6 +24,19 @@ const databasePath = process.env.LOCATION_DATABASE_PATH
   ? path.resolve(process.env.LOCATION_DATABASE_PATH)
   : path.join(process.cwd(), 'data', 'database', 'location-register.sqlite');
 const locationDatabase = new LocationDatabase(databasePath);
+const apiPlatform = new ApiPlatform(locationDatabase);
+configureApiKeyVerifier((key) => apiPlatform.verifyApiKey(key));
+
+const candidateEditionPath = path.join(process.cwd(), 'data', 'sources', 'uganda', 'official-2024-2025', 'ec-2025-candidate.json');
+const candidateCrosswalkPath = path.join(process.cwd(), 'data', 'sources', 'uganda', 'official-2024-2025', 'ec-2025-crosswalk.json');
+const candidateCrosswalk = fs.existsSync(candidateCrosswalkPath)
+  ? JSON.parse(fs.readFileSync(candidateCrosswalkPath, 'utf8')) as { report: Record<string, unknown>; records: Array<{ path: string[]; referenceCode: string | null; match: 'exact' | 'unmatched' }> }
+  : null;
+if (fs.existsSync(candidateEditionPath)) {
+  const candidate = JSON.parse(fs.readFileSync(candidateEditionPath, 'utf8')) as { metadata: { title: string; sourceYear: number; sourceSha256: string; statistics: unknown; status: string } };
+  locationDatabase.db.prepare(`INSERT OR IGNORE INTO location_dataset_editions(uid, country_code, edition, title, authority, effective_date, status, source_sha256, statistics_json, notes) VALUES (?, 'UG', ?, ?, 'Uganda Electoral Commission', '2025-01-10', 'candidate', ?, ?, ?)`)
+    .run(`ug-ec-${candidate.metadata.sourceYear}-${candidate.metadata.sourceSha256.slice(0, 12)}`, String(candidate.metadata.sourceYear), candidate.metadata.title, candidate.metadata.sourceSha256, JSON.stringify(candidate.metadata.statistics), 'Partial demarcated electoral-area layer; not a complete replacement administrative hierarchy.');
+}
 
 if (locationDatabase.getStatistics().countries === 0) {
   const legacyStorePath = path.join(process.cwd(), 'countries-store.json');
@@ -69,9 +83,14 @@ async function startServer() {
   const app = express();
   const httpServer = createHttpServer(app);
   const port = Number(process.env.PORT || 3000);
+  app.set('trust proxy', 1);
+  app.use(apiPlatform.requestContext());
+  app.use(apiPlatform.versionHeaders());
   app.use(cors());
   app.use(express.json({ limit: '1mb' }));
   app.use('/api', authenticateApiRequest);
+  app.use('/api', apiPlatform.usageLimits());
+  app.use('/api', apiPlatform.idempotency());
 
   app.get('/api/v1/session', (request, response) => {
     const principal = apiPrincipal(request);
@@ -144,6 +163,46 @@ async function startServer() {
     }
   });
 
+  app.get('/api/v1/admin/api-clients', authorizeOwner, (_request, response) => response.json({ items: apiPlatform.listClients() }));
+  app.post('/api/v1/admin/api-clients', authorizeOwner, (request, response) => {
+    try { return response.status(201).json(apiPlatform.createClient(request.body, actorFromRequest(request))); }
+    catch (error) { return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to create API client' }); }
+  });
+  app.post('/api/v1/admin/api-clients/:uid/revoke', authorizeOwner, (request, response) => { apiPlatform.revokeClient(routeParam(request, 'uid')); return response.status(204).send(); });
+
+  app.get('/api/v1/dataset-editions', (request, response) => {
+    const countryCode = String(request.query.countryCode || '').toUpperCase();
+    const rows = locationDatabase.db.prepare(`SELECT uid, country_code AS countryCode, edition, title, authority, effective_date AS effectiveDate, status, source_sha256 AS sourceSha256, statistics_json AS statistics, notes, created_at AS createdAt FROM location_dataset_editions WHERE (? = '' OR country_code = ?) ORDER BY effective_date DESC, created_at DESC`).all(countryCode, countryCode) as Record<string, unknown>[];
+    return response.json({ items: rows.map((row) => ({ ...row, statistics: JSON.parse(String(row.statistics)) })) });
+  });
+  app.get('/api/v1/dataset-editions/:uid/locations', (request, response) => {
+    const edition = locationDatabase.db.prepare('SELECT * FROM location_dataset_editions WHERE uid = ?').get(routeParam(request, 'uid')) as Record<string, unknown> | undefined;
+    if (!edition) return response.status(404).json({ message: 'Dataset edition not found' });
+    if (edition.country_code !== 'UG' || edition.edition !== '2025' || !candidateCrosswalk) return response.status(404).json({ message: 'Edition records are not available from this server.' });
+    const match = String(request.query.match || 'all'); const search = String(request.query.search || '').trim().toUpperCase();
+    if (!['all', 'exact', 'unmatched'].includes(match)) return response.status(400).json({ code: 'INVALID_MATCH_FILTER', message: 'match must be all, exact, or unmatched.' });
+    const filtered = candidateCrosswalk.records.filter((record) => (match === 'all' || record.match === match) && (!search || record.path.some((part) => part.toUpperCase().includes(search))));
+    const limit = Math.min(Math.max(integerQuery(request.query.limit, 100) || 100, 1), 1000); const offset = Math.max(integerQuery(request.query.offset, 0) || 0, 0);
+    return response.json({ edition: { uid: edition.uid, countryCode: edition.country_code, edition: edition.edition, status: edition.status }, items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, reconciliation: candidateCrosswalk.report });
+  });
+
+  app.post('/api/v1/webhooks', (request, response) => {
+    const principal = apiPrincipal(request);
+    if (principal.identityType !== 'machine' || !principal.clientId || !principal.scopes?.includes('webhooks:manage')) return response.status(403).json({ code: 'WEBHOOK_SCOPE_REQUIRED', message: 'A machine credential with webhooks:manage is required.' });
+    try { return response.status(201).json(apiPlatform.createWebhook(principal.clientId, request.body.url, Array.isArray(request.body.events) ? request.body.events : [])); }
+    catch (error) { return response.status(400).json({ message: error instanceof Error ? error.message : 'Unable to create webhook' }); }
+  });
+  app.get('/api/v1/webhooks', (request, response) => {
+    const principal = apiPrincipal(request);
+    if (principal.identityType !== 'machine' || !principal.clientId || !principal.scopes?.includes('webhooks:manage')) return response.status(403).json({ code: 'WEBHOOK_SCOPE_REQUIRED', message: 'A machine credential with webhooks:manage is required.' });
+    return response.json({ items: apiPlatform.listWebhooks(principal.clientId) });
+  });
+  app.delete('/api/v1/webhooks/:uid', (request, response) => {
+    const principal = apiPrincipal(request);
+    if (principal.identityType !== 'machine' || !principal.clientId || !principal.scopes?.includes('webhooks:manage')) return response.status(403).json({ code: 'WEBHOOK_SCOPE_REQUIRED', message: 'A machine credential with webhooks:manage is required.' });
+    return apiPlatform.disableWebhook(principal.clientId, routeParam(request, 'uid')) ? response.status(204).send() : response.status(404).json({ message: 'Webhook not found' });
+  });
+
   const countryFromLocation = (request: express.Request) => locationDatabase.getLocation(routeParam(request, 'uid'))?.countryCode;
   const countryFromReference = (request: express.Request) => locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'))?.countryCode;
   const canReadLocation = (request: express.Request, location: LocationRecord) => {
@@ -167,17 +226,28 @@ async function startServer() {
     }
     return next();
   };
+  const authorizeScopedLocationRead = (scope: string): express.RequestHandler => (request, response, next) => {
+    const principal = apiPrincipal(request);
+    if (principal.identityType === 'machine' && !principal.scopes?.includes(scope)) return response.status(403).json({ code: 'API_SCOPE_REQUIRED', message: `The credential requires ${scope}.` });
+    return authorizeLocationRead(request, response, next);
+  };
   const authorizeLocationContribution: express.RequestHandler = (request, response, next) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
     if (!location) return response.status(404).json({ message: 'Location reference not found' });
     const principal = apiPrincipal(request);
     const countryAssigned = principal.assignedCountryCodes.includes(location.countryCode);
     const locationAssigned = principal.assignedLocationReferenceCodes.length > 0 && canReadLocation(request, location);
-    const mayContribute = principal.role === 'admin'
+    const mayContribute = (principal.identityType === 'machine' && principal.scopes?.includes('locations:write') && canReadLocation(request, location))
+      || principal.role === 'admin'
       || (principal.role === 'country_admin' && countryAssigned && canReadLocation(request, location))
       || (principal.role === 'contributor' && (countryAssigned || locationAssigned) && canReadLocation(request, location));
     if (!mayContribute) return response.status(403).json({ code: 'LOCATION_WRITE_SCOPE_REQUIRED', message: 'This account is not authorized to update leadership for this location.' });
     return next();
+  };
+  const authorizeLeadershipContribution: express.RequestHandler = (request, response, next) => {
+    const principal = apiPrincipal(request);
+    if (principal.identityType === 'machine' && !principal.scopes?.includes('leadership:manage')) return response.status(403).json({ code: 'LEADERSHIP_SCOPE_REQUIRED', message: 'The credential requires leadership:manage.' });
+    return authorizeLocationContribution(request, response, next);
   };
   const locationLinks = (referenceCode: string) => ({
     self: `/api/v1/locations/${referenceCode}`,
@@ -237,6 +307,26 @@ async function startServer() {
     }
   });
 
+  app.get('/api/v1/countries/:countryCode/export', (request, response) => {
+    try {
+      if (!requireCountryRead(request, response)) return;
+      const format = String(request.query.format || 'json').toLowerCase();
+      if (!['json', 'csv', 'geojson'].includes(format)) return response.status(400).json({ code: 'INVALID_EXPORT_FORMAT', message: 'format must be json, csv, or geojson.' });
+      const page = locationDatabase.listLocations(routeParam(request, 'countryCode'), { levelOrder: integerQuery(request.query.level), search: request.query.search?.toString(), limit: integerQuery(request.query.limit, 1000), offset: integerQuery(request.query.offset, 0) });
+      const items = page.items.filter((item) => canReadLocation(request, item));
+      if (format === 'csv') {
+        const quote = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const body = ['referenceCode,name,type,levelName,levelOrder,countryCode', ...items.map((item) => [item.referenceCode, item.name, item.type, item.levelName, item.levelOrder, item.countryCode].map(quote).join(','))].join('\n');
+        response.type('text/csv').setHeader('Content-Disposition', `attachment; filename="${routeParam(request, 'countryCode').toLowerCase()}-locations.csv"`); return response.send(body);
+      }
+      if (format === 'geojson') {
+        const features = items.flatMap((item) => { const geometry = locationDatabase.getGeometry(item.uid); return geometry ? [{ type: 'Feature', id: item.referenceCode, properties: { referenceCode: item.referenceCode, name: item.name, type: item.type, levelName: item.levelName }, geometry: geometry.geometry }] : []; });
+        return response.json({ type: 'FeatureCollection', features, pagination: { total: page.total, limit: page.limit, offset: page.offset } });
+      }
+      return response.json({ items, total: page.total, limit: page.limit, offset: page.offset });
+    } catch (error) { return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to export locations' }); }
+  });
+
   app.get('/api/v1/countries/:countryCode/resolve-location', (request, response) => {
     try {
       if (!requireCountryRead(request, response)) return;
@@ -277,11 +367,13 @@ async function startServer() {
       if (!parent || parent.countryCode !== routeParam(request, 'countryCode').toUpperCase()) {
         return response.status(404).json({ message: 'Parent location reference not found in this country' });
       }
-      return response.status(201).json(locationDatabase.insertLocation({
+      const created = locationDatabase.insertLocation({
         ...request.body,
         countryCode: routeParam(request, 'countryCode').toUpperCase(),
         parentUid: parent.uid,
-      } as NewLocationInput, actorFromRequest(request)));
+      } as NewLocationInput, actorFromRequest(request));
+      apiPlatform.emit('location.created', created);
+      return response.status(201).json(created);
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to create location' });
     }
@@ -339,36 +431,36 @@ async function startServer() {
     });
   });
 
-  app.get('/api/v1/locations/:referenceCode/geometry', authorizeLocationRead, (request, response) => {
+  app.get('/api/v1/locations/:referenceCode/geometry', authorizeScopedLocationRead('geometry:read'), (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
     if (!location) return response.status(404).json({ message: 'Location reference not found' });
     const geometry = locationDatabase.getGeometry(location.uid);
     return geometry ? response.json(geometry) : response.status(404).json({ message: 'Geometry not available for this location' });
   });
 
-  app.get('/api/v1/locations/:referenceCode/leader', authorizeLocationRead, (request, response) => {
+  app.get('/api/v1/locations/:referenceCode/leader', authorizeScopedLocationRead('leadership:read'), (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
     return response.json({ location, leader: locationDatabase.getCurrentLeader(location.uid) });
   });
 
-  app.get('/api/v1/locations/:referenceCode/leadership-history', authorizeLocationRead, (request, response) => {
+  app.get('/api/v1/locations/:referenceCode/leadership-history', authorizeScopedLocationRead('audit:read'), (request, response) => {
     const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
-    return response.json({ location, ...locationDatabase.getLeadershipHistory(location.uid) });
+    return response.json({ location, ...locationDatabase.getLeadershipHistory(location.uid, integerQuery(request.query.limit, 100), integerQuery(request.query.offset, 0)) });
   });
 
-  app.put('/api/v1/locations/:referenceCode/leader', authorizeLocationContribution, (request, response) => {
+  app.put('/api/v1/locations/:referenceCode/leader', authorizeLeadershipContribution, (request, response) => {
     try {
       const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
-      return response.json({ location, leader: locationDatabase.saveCurrentLeader(location.uid, request.body, leadershipActorFromRequest(request)) });
+      const leader = locationDatabase.saveCurrentLeader(location.uid, request.body, leadershipActorFromRequest(request)); apiPlatform.emit('leadership.changed', { location, leader }); return response.json({ location, leader });
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to save location leader' });
     }
   });
 
-  app.post('/api/v1/locations/:referenceCode/leader/end', authorizeLocationContribution, (request, response) => {
+  app.post('/api/v1/locations/:referenceCode/leader/end', authorizeLeadershipContribution, (request, response) => {
     try {
       const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode')) as LocationRecord;
-      return response.json({ location, leader: locationDatabase.endCurrentLeader(location.uid, request.body.termEndedOn, leadershipActorFromRequest(request)) });
+      const leader = locationDatabase.endCurrentLeader(location.uid, request.body.termEndedOn, leadershipActorFromRequest(request)); apiPlatform.emit('leadership.changed', { location, leader }); return response.json({ location, leader });
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to end leader term' });
     }
@@ -378,7 +470,7 @@ async function startServer() {
     try {
       const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
       if (!location) return response.status(404).json({ message: 'Location reference not found' });
-      return response.json(locationDatabase.updateLocation(location.uid, request.body, actorFromRequest(request)));
+      const updated = locationDatabase.updateLocation(location.uid, request.body, actorFromRequest(request)); apiPlatform.emit('location.updated', updated); return response.json(updated);
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to update location' });
     }
@@ -390,7 +482,7 @@ async function startServer() {
       const parent = locationDatabase.getLocationByReferenceCode(String(request.body.parentReferenceCode || ''));
       if (!location || !parent) return response.status(404).json({ message: 'Location or parent reference not found' });
       if (location.countryCode !== parent.countryCode) return response.status(400).json({ message: 'Location and parent must belong to the same country' });
-      return response.json(locationDatabase.moveLocation(location.uid, parent.uid, actorFromRequest(request)));
+      const moved = locationDatabase.moveLocation(location.uid, parent.uid, actorFromRequest(request)); apiPlatform.emit('location.moved', moved); return response.json(moved);
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to move location' });
     }
@@ -400,7 +492,7 @@ async function startServer() {
     try {
       const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
       if (!location) return response.status(404).json({ message: 'Location reference not found' });
-      locationDatabase.deleteLocation(location.uid, request.query.cascade === 'true', actorFromRequest(request));
+      locationDatabase.deleteLocation(location.uid, request.query.cascade === 'true', actorFromRequest(request)); apiPlatform.emit('location.deleted', location);
       return response.status(204).send();
     } catch (error) {
       return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to delete location' });

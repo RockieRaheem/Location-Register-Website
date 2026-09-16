@@ -1209,7 +1209,7 @@ const CountryMapModal: React.FC<CountryMapModalProps> = ({
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-black uppercase tracking-wider text-slate-400">Hierarchy source</span>
-                      <span className="font-bold text-emerald-500 text-right">Electoral Commission 2022</span>
+                      <span className="font-bold text-emerald-500 text-right">Versioned Uganda registry</span>
                     </div>
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-slate-400">Source SHA-256</span>

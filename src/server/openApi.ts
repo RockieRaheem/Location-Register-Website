@@ -1,4 +1,4 @@
-const bearerSecurity = [{ firebaseBearer: [] }];
+const bearerSecurity = [{ firebaseBearer: [] }, { apiKey: [] }];
 
 const errorResponses = {
   '401': { description: 'Missing, expired, invalid, or revoked Firebase ID token.' },
@@ -18,6 +18,7 @@ export const locationApiOpenApi = {
   components: {
     securitySchemes: {
       firebaseBearer: { type: 'http', scheme: 'bearer', bearerFormat: 'Firebase ID token' },
+      apiKey: { type: 'apiKey', in: 'header', name: 'X-API-Key', description: 'Hashed, scoped service credential. The plaintext key is shown only once.' },
     },
     schemas: {
       Location: {
@@ -67,6 +68,29 @@ export const locationApiOpenApi = {
         ],
         responses: { '200': { description: 'Paginated location collection.' }, ...errorResponses },
       },
+    },
+    '/countries/{countryCode}/export': {
+      get: { summary: 'Export a paginated location collection as JSON, CSV, or GeoJSON', operationId: 'exportCountryLocations', parameters: [{ name: 'countryCode', in: 'path', required: true, schema: { type: 'string' } }, { name: 'format', in: 'query', schema: { type: 'string', enum: ['json', 'csv', 'geojson'] } }, { name: 'level', in: 'query', schema: { type: 'integer' } }, { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 1000 } }, { name: 'offset', in: 'query', schema: { type: 'integer' } }], responses: { '200': { description: 'Requested export page.' }, ...errorResponses } },
+    },
+    '/dataset-editions': {
+      get: { summary: 'List source-backed dataset editions and publication status', operationId: 'listDatasetEditions', responses: { '200': { description: 'Dataset edition collection.' }, ...errorResponses } },
+    },
+    '/dataset-editions/{uid}/locations': {
+      get: { summary: 'List paginated source paths and immutable-reference crosswalk results for an edition', operationId: 'listDatasetEditionLocations', parameters: [{ name: 'uid', in: 'path', required: true, schema: { type: 'string' } }, { name: 'match', in: 'query', schema: { type: 'string', enum: ['all', 'exact', 'unmatched'] } }, { name: 'search', in: 'query', schema: { type: 'string' } }, { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 1000 } }, { name: 'offset', in: 'query', schema: { type: 'integer' } }], responses: { '200': { description: 'Edition path and reference-code crosswalk page.' }, ...errorResponses } },
+    },
+    '/webhooks': {
+      get: { summary: 'List the current machine client webhooks', operationId: 'listWebhooks', responses: { '200': { description: 'Webhook collection without signing secrets.' }, ...errorResponses } },
+      post: { summary: 'Register an HTTPS change webhook', operationId: 'createWebhook', responses: { '201': { description: 'Webhook and one-time signing secret.' }, ...errorResponses } },
+    },
+    '/webhooks/{uid}': {
+      delete: { summary: 'Disable a webhook', operationId: 'disableWebhook', parameters: [{ name: 'uid', in: 'path', required: true, schema: { type: 'string' } }], responses: { '204': { description: 'Webhook disabled.' }, ...errorResponses } },
+    },
+    '/admin/api-clients': {
+      get: { summary: 'List machine API clients', operationId: 'listApiClients', responses: { '200': { description: 'API clients without credential hashes.' }, ...errorResponses } },
+      post: { summary: 'Create a scoped machine API client and one-time key', operationId: 'createApiClient', responses: { '201': { description: 'Client and one-time plaintext API key.' }, ...errorResponses } },
+    },
+    '/admin/api-clients/{uid}/revoke': {
+      post: { summary: 'Revoke a machine client and all of its credentials', operationId: 'revokeApiClient', parameters: [{ name: 'uid', in: 'path', required: true, schema: { type: 'string' } }], responses: { '204': { description: 'Client revoked.' }, ...errorResponses } },
     },
     '/countries/{countryCode}/resolve-location': {
       get: { summary: 'Resolve one location from its complete hierarchy path', operationId: 'resolveLocationPath', parameters: [{ name: 'countryCode', in: 'path', required: true, schema: { type: 'string' } }, { name: 'path', in: 'query', required: true, schema: { type: 'string' }, description: 'Pipe-delimited names from the country root to the target.' }], responses: { '200': { description: 'Exactly resolved location.' }, ...errorResponses } },
