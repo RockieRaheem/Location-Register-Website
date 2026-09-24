@@ -25,6 +25,7 @@ describe('Any-Location OpenAPI contract', () => {
       '/locations/{referenceCode}/ancestors',
       '/locations/{referenceCode}/geometry',
       '/locations/{referenceCode}/leader',
+      '/locations/{referenceCode}/map',
       '/locations/{referenceCode}/leadership-history',
       '/locations/{referenceCode}/leader/end',
     ]));

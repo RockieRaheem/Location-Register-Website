@@ -262,6 +262,7 @@ async function startServer() {
     subtree: `/api/v1/locations/${referenceCode}/subtree`,
     ancestors: `/api/v1/locations/${referenceCode}/ancestors`,
     geometry: `/api/v1/locations/${referenceCode}/geometry`,
+    map: `/api/v1/locations/${referenceCode}/map`,
     leader: `/api/v1/locations/${referenceCode}/leader`,
     leadershipHistory: `/api/v1/locations/${referenceCode}/leadership-history`,
   });
@@ -443,6 +444,35 @@ async function startServer() {
     if (!location) return response.status(404).json({ message: 'Location reference not found' });
     const geometry = locationDatabase.getGeometry(location.uid);
     return geometry ? response.json(geometry) : response.status(404).json({ message: 'Geometry not available for this location' });
+  });
+
+  app.get('/api/v1/locations/:referenceCode/map', authorizeScopedLocationRead('geometry:read'), (request, response) => {
+    const referenceCode = routeParam(request, 'referenceCode');
+    const location = locationDatabase.getLocationByReferenceCode(referenceCode) as LocationRecord;
+    const geometry = locationDatabase.getGeometry(location.uid);
+    if (geometry) {
+      return response.json({
+        mode: 'geometry',
+        location,
+        feature: {
+          type: 'Feature',
+          id: location.referenceCode,
+          properties: { referenceCode: location.referenceCode, name: location.name, type: location.type, levelName: location.levelName },
+          geometry: geometry.geometry,
+          bbox: geometry.bbox,
+        },
+        source: { name: geometry.sourceName, version: geometry.sourceVersion },
+      });
+    }
+    const ancestors = locationDatabase.getAncestors(location.uid);
+    const children = locationDatabase.getDescendants(location.uid, 1, 100, 0);
+    return response.json({
+      mode: 'hierarchy',
+      location,
+      message: 'Verified boundary geometry is not available. Showing the administrative hierarchy without inventing a map boundary.',
+      ancestors,
+      children,
+    });
   });
 
   app.get('/api/v1/locations/:referenceCode/leader', authorizeScopedLocationRead('leadership:read'), (request, response) => {

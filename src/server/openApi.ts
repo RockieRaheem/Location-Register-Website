@@ -119,6 +119,9 @@ export const locationApiOpenApi = {
     '/locations/{referenceCode}/geometry': {
       get: { summary: 'Get verified GeoJSON geometry when available', operationId: 'getLocationGeometry', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Source-attributed geometry.' }, ...errorResponses } },
     },
+    '/locations/{referenceCode}/map': {
+      get: { summary: 'Get a verified map or a non-geographic hierarchy fallback', operationId: 'getLocationMap', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'GeoJSON feature when verified geometry exists; otherwise an explicit hierarchy visualization model.' }, ...errorResponses } },
+    },
     '/locations/{referenceCode}/leader': {
       get: { summary: 'Get the current leader for a location', operationId: 'getLocationLeader', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Current leader, or null when none is recorded.' }, ...errorResponses } },
       put: { summary: 'Create, update, or replace the current leader', operationId: 'saveLocationLeader', parameters: [{ name: 'referenceCode', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'Saved leader assignment.' }, ...errorResponses } },
