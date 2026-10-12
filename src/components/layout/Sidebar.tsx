@@ -128,13 +128,6 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
       </div>
       
       <nav className={`flex-1 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-2 ${isCollapsed ? '' : 'pr-2'}`}>
-        {hasApiAccess && (
-          <>
-            <SectionTitle theme={theme} isCollapsed={isCollapsed}>Data access</SectionTitle>
-            <NavLink isCollapsed={isCollapsed} theme={theme} icon="api" label="API Access" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />
-          </>
-        )}
-
         {/* LOCATION DATA MENU */}
         {isLocationExplorer && (
              <>
@@ -144,6 +137,25 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
                 <NavLink isCollapsed={isCollapsed} theme={theme} icon="user-circle" label={t('sidebar.myProfile', 'My profile')} active={activeView === 'profile'} onClick={() => onNavigate('profile')} />
                 <NavLink isCollapsed={isCollapsed} theme={theme} icon="system-settings" label={t('sidebar.accountSettings', 'Account settings')} active={activeView === 'settings'} onClick={() => onNavigate('settings')} />
              </>
+        )}
+
+        {/* API settings for location explorers live under Settings, not as a top-level action. */}
+        {isLocationExplorer && hasApiAccess && (
+          <>
+            <SectionTitle theme={theme} isCollapsed={isCollapsed}>Settings</SectionTitle>
+            <div>
+              <button onClick={() => isCollapsed ? onNavigate('settings-api') : setIsSystemSettingsMenuOpen(!isSystemSettingsMenuOpen)} className={`w-full flex items-center justify-between text-sm font-medium rounded-md transition-all duration-200 active:scale-95 text-left relative group ${isCollapsed ? 'p-3 justify-center' : 'px-4 py-2.5'} ${isSystemSettingsMenuActive ? 'bg-yellow-500 text-slate-900 shadow-md' : (theme === 'dark' ? 'text-slate-300 hover:bg-slate-700 hover:text-white' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900')}`}>
+                <div className="flex items-center"><Icon name="system-settings" className="h-5 w-5 flex-shrink-0" /><span className={`whitespace-nowrap transition-all duration-200 ${isCollapsed ? 'w-0 ml-0 opacity-0 overflow-hidden' : 'w-auto ml-3 opacity-100'}`}>System Settings</span></div>
+                <Icon name="chevron-down" className={`h-4 w-4 transition-all duration-200 ${isSystemSettingsMenuOpen ? 'rotate-180' : ''} ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`} />
+                {isCollapsed && <span className="absolute left-full ml-3 px-2 py-1 text-xs font-semibold text-white bg-slate-800 rounded-md shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50 pointer-events-none">System Settings</span>}
+              </button>
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isSystemSettingsMenuOpen && !isCollapsed ? 'max-h-40' : 'max-h-0'}`}>
+                <div className={`pt-1 space-y-1 ${isCollapsed ? 'hidden' : 'pl-4'}`}>
+                  <NavLink isCollapsed={isCollapsed} theme={theme} icon="api" label="API Access" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />
+                </div>
+              </div>
+            </div>
+          </>
         )}
         
         {/* CUSTOMER MENU */}
@@ -273,14 +285,14 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
                     </div>
                 )}
                 
-                {!isFinancialInstitution && (
+                {(!isFinancialInstitution || hasApiAccess) && (
                   <SectionTitle theme={theme} isCollapsed={isCollapsed}>{t('sidebar.settings', 'Settings')}</SectionTitle>
                 )}
                 
                 {/* Collapsible System Settings Menu */}
-                {!isFinancialInstitution && (
+                {(!isFinancialInstitution || hasApiAccess) && (
                   <div>
-                      <button onClick={() => isCollapsed ? onNavigate(isSuperAdmin ? 'settings-api' : 'settings-calls') : setIsSystemSettingsMenuOpen(!isSystemSettingsMenuOpen)} className={`w-full flex items-center justify-between text-sm font-medium rounded-md transition-all duration-200 active:scale-95 text-left relative group ${isCollapsed ? 'p-3 justify-center' : 'px-4 py-2.5'} ${isSystemSettingsMenuActive ? 'bg-yellow-500 text-slate-900 shadow-md' : (theme === 'dark' ? 'text-slate-300 hover:bg-slate-700 hover:text-white' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900')}`}>
+                      <button onClick={() => isCollapsed ? onNavigate(hasApiAccess ? 'settings-api' : 'settings-calls') : setIsSystemSettingsMenuOpen(!isSystemSettingsMenuOpen)} className={`w-full flex items-center justify-between text-sm font-medium rounded-md transition-all duration-200 active:scale-95 text-left relative group ${isCollapsed ? 'p-3 justify-center' : 'px-4 py-2.5'} ${isSystemSettingsMenuActive ? 'bg-yellow-500 text-slate-900 shadow-md' : (theme === 'dark' ? 'text-slate-300 hover:bg-slate-700 hover:text-white' : 'text-slate-600 hover:bg-slate-200 hover:text-slate-900')}`}>
                           <div className="flex items-center"><Icon name="system-settings" className="h-5 w-5 flex-shrink-0" /><span className={`whitespace-nowrap transition-all duration-200 ${isCollapsed ? 'w-0 ml-0 opacity-0 overflow-hidden' : 'w-auto ml-3 opacity-100'}`}>System Settings</span></div>
                           <Icon name="chevron-down" className={`h-4 w-4 transition-all duration-200 ${isSystemSettingsMenuOpen ? 'rotate-180' : ''} ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`} />
                           {isCollapsed && (
@@ -291,9 +303,9 @@ const Sidebar: React.FC<SidebarProps> = ({ theme, toggleTheme, activeView, onNav
                       </button>
                       <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isSystemSettingsMenuOpen && !isCollapsed ? 'max-h-60' : 'max-h-0'}`}>
                           <div className={`pt-1 space-y-1 ${isCollapsed ? 'hidden' : 'pl-4'}`}>
-                              
+                              {hasApiAccess && <NavLink isCollapsed={isCollapsed} theme={theme} icon="api" label="API Access" active={activeView === 'settings-api'} onClick={() => onNavigate('settings-api')} />}
                               {isSuperAdmin && <NavLink isCollapsed={isCollapsed} theme={theme} icon="lock" label="Message Settings" active={activeView === 'system-message-settings'} onClick={() => onNavigate('system-message-settings')} />}
-                              <NavLink isCollapsed={isCollapsed} theme={theme} icon="phone" label="Call Settings" active={activeView === 'settings-calls'} onClick={() => onNavigate('settings-calls')} />
+                              {!isFinancialInstitution && <NavLink isCollapsed={isCollapsed} theme={theme} icon="phone" label="Call Settings" active={activeView === 'settings-calls'} onClick={() => onNavigate('settings-calls')} />}
                           </div>
                       </div>
                   </div>
