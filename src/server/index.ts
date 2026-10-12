@@ -13,6 +13,7 @@ import { apiPrincipal, authenticateApiRequest, authorize, authorizeOwner, config
 import { apiRoles, canReadLocation as canPrincipalReadLocation, hasCountryWideRead as principalHasCountryWideRead, type ApiRole } from './apiPolicy.ts';
 import { locationApiOpenApi } from './openApi.ts';
 import { ApiPlatform } from './apiPlatform.ts';
+import { buildCountryApiProfile } from './countryApiProfile.ts';
 
 try {
   loadEnvFile(path.join(process.cwd(), '.env.local'));
@@ -269,9 +270,27 @@ async function startServer() {
 
   // Stable, versioned integration API. Reference codes are immutable public identifiers;
   // UUID routes below remain available to the first-party application.
+  const countryProfile = (country: Country) => {
+    const root = country.referenceCode
+      ? locationDatabase.getLocationByReferenceCode(country.referenceCode)
+      : null;
+    return buildCountryApiProfile(country, {
+      hasVerifiedGeometry: Boolean(root && locationDatabase.getGeometry(root.uid)),
+    });
+  };
+
   app.get('/api/v1/countries', (request, response) => response.json({
-    items: locationDatabase.getCountries().filter((country) => canReadCountry(request, country.countryCode)),
+    items: locationDatabase.getCountries()
+      .filter((country) => canReadCountry(request, country.countryCode))
+      .map(countryProfile),
   }));
+
+  app.get('/api/v1/countries/:countryCode/profile', (request, response) => {
+    const country = locationDatabase.getCountryByCode(routeParam(request, 'countryCode'));
+    if (!country) return response.status(404).json({ code: 'COUNTRY_NOT_FOUND', message: 'Country not found.' });
+    if (!requireCountryRead(request, response)) return;
+    return response.json(countryProfile(country));
+  });
 
   app.get('/api/v1/countries/:countryCode/schema', (request, response) => {
     try {

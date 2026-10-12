@@ -38,6 +38,44 @@ export const locationApiOpenApi = {
           metadata: { type: 'object', additionalProperties: true },
         },
       },
+      CountryProfile: {
+        type: 'object',
+        required: ['referenceCode', 'name', 'continent', 'countryCode', 'phoneCode', 'codes', 'flag', 'currency', 'map', 'links'],
+        properties: {
+          referenceCode: { type: ['string', 'null'], description: 'Immutable reference ID for the country root.' },
+          name: { type: 'string' },
+          continent: { type: 'string' },
+          economicZones: { type: 'array', items: { type: 'string' } },
+          countryCode: { type: 'string', minLength: 2, maxLength: 2, description: 'ISO 3166-1 alpha-2 country code.' },
+          phoneCode: { type: 'string', description: 'International calling code.' },
+          codes: {
+            type: 'object',
+            properties: { iso2: { type: 'string' }, callingCode: { type: 'string' } },
+          },
+          flag: {
+            type: 'object',
+            properties: { emoji: { type: ['string', 'null'] }, svgUrl: { type: 'string', format: 'uri' }, pngUrl: { type: 'string', format: 'uri' }, alt: { type: 'string' } },
+          },
+          currency: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              code: { type: 'string' },
+              symbol: { type: 'string' },
+              decimalPlaces: { type: 'integer' },
+              denominations: {
+                type: 'array',
+                items: { type: 'object', properties: { value: { type: 'number' }, label: { type: 'string' }, type: { type: 'string', enum: ['Note', 'Coin'] }, status: { type: 'string', enum: ['Active', 'Inactive'] }, frontImage: { type: 'string' }, backImage: { type: 'string' } } },
+              },
+            },
+          },
+          map: {
+            type: 'object',
+            properties: { hasVerifiedGeometry: { type: 'boolean' }, responseMode: { type: 'string', enum: ['geometry', 'hierarchy'] }, endpoint: { type: ['string', 'null'] }, geometryEndpoint: { type: ['string', 'null'] }, fallback: { type: 'string', enum: ['hierarchy'] } },
+          },
+          links: { type: 'object', additionalProperties: { type: ['string', 'null'] } },
+        },
+      },
       Error: {
         type: 'object',
         properties: { code: { type: 'string' }, message: { type: 'string' } },
@@ -46,7 +84,14 @@ export const locationApiOpenApi = {
   },
   paths: {
     '/countries': {
-      get: { summary: 'List configured countries', operationId: 'listCountries', responses: { '200': { description: 'Country collection.' }, ...errorResponses } },
+      get: { summary: 'List country identity, flag, currency, denomination, and map profiles', operationId: 'listCountries', responses: { '200': { description: 'Country profile collection.' }, ...errorResponses } },
+    },
+    '/countries/{countryCode}/profile': {
+      get: {
+        summary: 'Get a country identity, flag, currency, denomination, and map profile', operationId: 'getCountryProfile',
+        parameters: [{ name: 'countryCode', in: 'path', required: true, schema: { type: 'string', minLength: 2, maxLength: 2 } }],
+        responses: { '200': { description: 'Country API profile.', content: { 'application/json': { schema: { $ref: '#/components/schemas/CountryProfile' } } } }, ...errorResponses },
+      },
     },
     '/countries/{countryCode}/schema': {
       get: {

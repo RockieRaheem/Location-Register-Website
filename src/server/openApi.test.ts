@@ -6,6 +6,7 @@ describe('Any-Location OpenAPI contract', () => {
     expect(locationApiOpenApi.components.securitySchemes.firebaseBearer.scheme).toBe('bearer');
     expect(Object.keys(locationApiOpenApi.paths)).toEqual(expect.arrayContaining([
       '/countries',
+      '/countries/{countryCode}/profile',
       '/countries/{countryCode}/schema',
       '/countries/{countryCode}/locations',
       '/locations/{referenceCode}',
