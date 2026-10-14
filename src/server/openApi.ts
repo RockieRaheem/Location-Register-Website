@@ -134,6 +134,12 @@ export const locationApiOpenApi = {
       get: { summary: 'List machine API clients', operationId: 'listApiClients', responses: { '200': { description: 'API clients without credential hashes.' }, ...errorResponses } },
       post: { summary: 'Create a scoped machine API client and one-time key', operationId: 'createApiClient', responses: { '201': { description: 'Client and one-time plaintext API key.' }, ...errorResponses } },
     },
+    '/admin/api-scope-catalog': {
+      get: { summary: 'List valid economic-zone, regional-block, and country access boundaries', operationId: 'getApiScopeCatalog', responses: { '200': { description: 'Owner-managed geographic scope catalog.' }, ...errorResponses } },
+    },
+    '/admin/api-scope-locations': {
+      get: { summary: 'Search lower-level locations for a service-client boundary', operationId: 'searchApiScopeLocations', parameters: [{ name: 'countryCode', in: 'query', required: true, schema: { type: 'string' } }, { name: 'search', in: 'query', required: true, schema: { type: 'string', minLength: 2 } }], responses: { '200': { description: 'Matching locations with immutable reference IDs.' }, ...errorResponses } },
+    },
     '/admin/api-clients/{uid}/revoke': {
       post: { summary: 'Revoke a machine client and all of its credentials', operationId: 'revokeApiClient', parameters: [{ name: 'uid', in: 'path', required: true, schema: { type: 'string' } }], responses: { '204': { description: 'Client revoked.' }, ...errorResponses } },
     },

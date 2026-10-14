@@ -107,6 +107,7 @@ export async function updateRegisteredUserAccess(
 
 export interface MachineApiClient {
   uid: string; name: string; description?: string; status: string; key_prefix?: string;
+  assignedEconomicZones: string[]; assignedRegionalBlocks: string[];
   scopes: string[]; assignedCountryCodes: string[]; assignedLocationReferenceCodes: string[];
   requests_per_minute: number; daily_quota: number; expires_at?: string; last_used_at?: string; created_at: string;
 }
@@ -115,7 +116,26 @@ export async function listMachineApiClients(): Promise<MachineApiClient[]> {
   const result = await authenticatedApiRequest<{ items: MachineApiClient[] }>('/api/v1/admin/api-clients'); return result.items;
 }
 
-export function createMachineApiClient(input: { name: string; description?: string; scopes: string[]; assignedCountryCodes: string[]; requestsPerMinute: number; dailyQuota: number; expiresAt?: string }): Promise<{ clientUid: string; apiKey: string; scopes: string[]; warning: string }> {
+export interface ApiGeographicScopeCatalog {
+  economicZones: Array<{ code: string; name: string; countryCodes: string[] }>;
+  regionalBlocks: Array<{ code: string; name: string; countryCodes: string[] }>;
+  countries: Array<{ countryCode: string; name: string; referenceCode: string | null }>;
+}
+
+export interface ApiScopeLocationOption {
+  referenceCode: string; name: string; levelName: string; levelOrder: number; countryCode: string;
+}
+
+export function getApiGeographicScopeCatalog(): Promise<ApiGeographicScopeCatalog> {
+  return authenticatedApiRequest('/api/v1/admin/api-scope-catalog');
+}
+
+export async function searchApiScopeLocations(countryCode: string, search: string): Promise<ApiScopeLocationOption[]> {
+  const result = await authenticatedApiRequest<{ items: ApiScopeLocationOption[] }>(`/api/v1/admin/api-scope-locations?countryCode=${encodeURIComponent(countryCode)}&search=${encodeURIComponent(search)}`);
+  return result.items;
+}
+
+export function createMachineApiClient(input: { name: string; description?: string; scopes: string[]; assignedEconomicZones: string[]; assignedRegionalBlocks: string[]; assignedCountryCodes: string[]; assignedLocationReferenceCodes: string[]; requestsPerMinute: number; dailyQuota: number; expiresAt?: string }): Promise<{ clientUid: string; apiKey: string; scopes: string[]; warning: string }> {
   return authenticatedApiRequest('/api/v1/admin/api-clients', { method: 'POST', body: JSON.stringify(input) });
 }
 

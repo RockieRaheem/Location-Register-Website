@@ -18,6 +18,8 @@ describe('Any-Location OpenAPI contract', () => {
       '/webhooks',
       '/webhooks/{uid}',
       '/admin/api-clients',
+      '/admin/api-scope-catalog',
+      '/admin/api-scope-locations',
       '/admin/api-clients/{uid}/revoke',
       '/locations/{referenceCode}/api',
       '/locations/{referenceCode}/children',

@@ -39,8 +39,16 @@ describe('API role permissions', () => {
     expect(canReadLocation(user, { uid: 'nairobi', countryCode: 'KE' }, () => false)).toBe(false);
   });
 
-  it('makes assigned location roots override broader country access', () => {
+  it('combines country and location grants without leaking outside either boundary', () => {
     const user = { ...principal('developer', ['UG']), assignedLocationReferenceCodes: ['UG-L02-KAMPALA'] };
+    expect(hasCountryWideRead(user, 'UG')).toBe(true);
+    expect(canReadLocation(user, { uid: 'kampala-child', countryCode: 'UG' }, (uid) => uid === 'kampala-child')).toBe(true);
+    expect(canReadLocation(user, { uid: 'gulu', countryCode: 'UG' }, () => false)).toBe(true);
+    expect(canReadLocation(user, { uid: 'nairobi', countryCode: 'KE' }, () => false)).toBe(false);
+  });
+
+  it('limits a location-only identity to assigned subtrees', () => {
+    const user = { ...principal('developer'), assignedLocationReferenceCodes: ['UG-L02-KAMPALA'] };
     expect(hasCountryWideRead(user, 'UG')).toBe(false);
     expect(canReadLocation(user, { uid: 'kampala-child', countryCode: 'UG' }, (uid) => uid === 'kampala-child')).toBe(true);
     expect(canReadLocation(user, { uid: 'gulu', countryCode: 'UG' }, () => false)).toBe(false);

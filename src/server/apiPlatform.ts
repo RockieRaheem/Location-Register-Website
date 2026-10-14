@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import type express from 'express';
 import type { LocationDatabase } from './locationDatabase.ts';
 import { apiPrincipal, type ApiPrincipal } from './apiAuth.ts';
+import { buildApiScopeCatalog, resolveApiScopeCountries } from './apiScopeCatalog.ts';
 
 const machineScopes = new Set(['locations:read', 'geometry:read', 'leadership:read', 'locations:write', 'leadership:manage', 'audit:read', 'webhooks:manage']);
 const minuteBuckets = new Map<string, { minute: number; count: number }>();
@@ -12,6 +13,7 @@ const sha256 = (value: string) => createHash('sha256').update(value).digest('hex
 
 export interface ApiClientInput {
   name: string; description?: string; scopes: string[]; assignedCountryCodes?: string[];
+  assignedEconomicZones?: string[]; assignedRegionalBlocks?: string[];
   assignedLocationReferenceCodes?: string[]; requestsPerMinute?: number; dailyQuota?: number; expiresAt?: string;
 }
 
@@ -51,14 +53,21 @@ export class ApiPlatform {
   verifyApiKey(rawKey: string): ApiPrincipal | null {
     const match = rawKey.match(/^al_live_([a-f0-9]{12})_([A-Za-z0-9_-]{32,})$/);
     if (!match) return null;
-    const row = this.locations.db.prepare(`SELECT credential.*, client.name, client.status, client.assigned_country_codes_json, client.assigned_location_reference_codes_json, client.requests_per_minute, client.daily_quota FROM api_credentials credential JOIN api_clients client ON client.uid = credential.client_uid WHERE credential.key_prefix = ?`).get(match[1]) as Record<string, unknown> | undefined;
+    const row = this.locations.db.prepare(`SELECT credential.*, client.name, client.status, client.assigned_economic_zones_json, client.assigned_regional_blocks_json, client.assigned_country_codes_json, client.assigned_location_reference_codes_json, client.requests_per_minute, client.daily_quota FROM api_credentials credential JOIN api_clients client ON client.uid = credential.client_uid WHERE credential.key_prefix = ?`).get(match[1]) as Record<string, unknown> | undefined;
     if (!row || row.status !== 'active' || row.revoked_at || (row.expires_at && String(row.expires_at) <= new Date().toISOString())) return null;
     const actual = Buffer.from(sha256(rawKey), 'hex'); const expected = Buffer.from(String(row.key_hash), 'hex');
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
     this.locations.db.prepare(`UPDATE api_credentials SET last_used_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE uid = ?`).run(String(row.uid));
+    const assignedEconomicZones = parse<string[]>(row.assigned_economic_zones_json, []);
+    const assignedRegionalBlocks = parse<string[]>(row.assigned_regional_blocks_json, []);
+    const explicitCountryCodes = parse<string[]>(row.assigned_country_codes_json, []);
+    const catalog = buildApiScopeCatalog(this.locations.getCountries());
     return {
       uid: String(row.client_uid), email: undefined, role: 'developer', identityType: 'machine', clientId: String(row.client_uid),
-      scopes: parse<string[]>(row.scopes_json, []), assignedCountryCodes: parse<string[]>(row.assigned_country_codes_json, []),
+      scopes: parse<string[]>(row.scopes_json, []),
+      assignedEconomicZones,
+      assignedRegionalBlocks,
+      assignedCountryCodes: resolveApiScopeCountries(catalog, assignedEconomicZones, assignedRegionalBlocks, explicitCountryCodes),
       assignedLocationReferenceCodes: parse<string[]>(row.assigned_location_reference_codes_json, []),
       requestsPerMinute: Number(row.requests_per_minute), dailyQuota: Number(row.daily_quota),
     };
@@ -107,19 +116,32 @@ export class ApiPlatform {
     const name = String(input.name || '').trim(); if (!name) throw new Error('name is required');
     const scopes = [...new Set(input.scopes || [])]; if (!scopes.length || scopes.some((scope) => !machineScopes.has(scope))) throw new Error('Select one or more valid scopes');
     const clientUid = randomUUID(); const credentialUid = randomUUID(); const prefix = randomBytes(6).toString('hex'); const secret = randomBytes(32).toString('base64url'); const apiKey = `al_live_${prefix}_${secret}`;
-    const countries = [...new Set((input.assignedCountryCodes || []).map((code) => code.toUpperCase()))]; const references = [...new Set((input.assignedLocationReferenceCodes || []).map((code) => code.toUpperCase()))];
-    if (countries.some((code) => !/^[A-Z]{2}$/.test(code))) throw new Error('Country assignments must use ISO alpha-2 codes');
+    const catalog = buildApiScopeCatalog(this.locations.getCountries());
+    const economicZones = [...new Set((input.assignedEconomicZones || []).map((value) => value.trim().toUpperCase()).filter(Boolean))];
+    const regionalBlocks = [...new Set((input.assignedRegionalBlocks || []).map((value) => value.trim().toUpperCase()).filter(Boolean))];
+    const countries = [...new Set((input.assignedCountryCodes || []).map((code) => code.trim().toUpperCase()).filter(Boolean))];
+    const references = [...new Set((input.assignedLocationReferenceCodes || []).map((code) => code.trim().toUpperCase()).filter(Boolean))];
+    const boundaryTypes = [economicZones, regionalBlocks, countries, references].filter((values) => values.length > 0).length;
+    if (boundaryTypes !== 1) throw new Error('Select exactly one geographic scope type: economic zone, regional block, country, or specific location');
+    const knownZones = new Set(catalog.economicZones.map((zone) => zone.code));
+    const knownBlocks = new Set(catalog.regionalBlocks.map((block) => block.code));
+    const knownCountries = new Set(catalog.countries.map((country) => country.countryCode));
+    const invalidZone = economicZones.find((code) => !knownZones.has(code)); if (invalidZone) throw new Error(`Economic zone not found: ${invalidZone}`);
+    const invalidBlock = regionalBlocks.find((code) => !knownBlocks.has(code)); if (invalidBlock) throw new Error(`Regional block not found: ${invalidBlock}`);
+    const invalidCountry = countries.find((code) => !knownCountries.has(code)); if (invalidCountry) throw new Error(`Country not found: ${invalidCountry}`);
+    if (references.length > 100) throw new Error('Assign at most 100 location scope roots to one client');
     const invalidReference = references.find((code) => !this.locations.getLocationByReferenceCode(code)); if (invalidReference) throw new Error(`Location reference not found: ${invalidReference}`);
+    const countryRootReference = references.find((code) => this.locations.getLocationByReferenceCode(code)?.levelOrder === 0); if (countryRootReference) throw new Error('Use a country scope instead of assigning a country root as a specific location');
     if (input.expiresAt && (Number.isNaN(Date.parse(input.expiresAt)) || input.expiresAt <= new Date().toISOString())) throw new Error('expiresAt must be a future ISO date');
     this.locations.transaction(() => {
-      this.locations.db.prepare('INSERT INTO api_clients(uid, name, description, assigned_country_codes_json, assigned_location_reference_codes_json, requests_per_minute, daily_quota, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(clientUid, name, input.description || null, json(countries), json(references), input.requestsPerMinute || 60, input.dailyQuota || 10000, actor);
+      this.locations.db.prepare('INSERT INTO api_clients(uid, name, description, assigned_economic_zones_json, assigned_regional_blocks_json, assigned_country_codes_json, assigned_location_reference_codes_json, requests_per_minute, daily_quota, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(clientUid, name, input.description || null, json(economicZones), json(regionalBlocks), json(countries), json(references), input.requestsPerMinute || 60, input.dailyQuota || 10000, actor);
       this.locations.db.prepare('INSERT INTO api_credentials(uid, client_uid, key_prefix, key_hash, scopes_json, expires_at) VALUES (?, ?, ?, ?, ?, ?)').run(credentialUid, clientUid, prefix, sha256(apiKey), json(scopes), input.expiresAt || null);
     });
     return { clientUid, credentialUid, apiKey, keyPrefix: prefix, scopes, warning: 'Copy this API key now. It cannot be retrieved again.' };
   }
 
   listClients() {
-    return (this.locations.db.prepare(`SELECT client.*, credential.key_prefix, credential.scopes_json, credential.expires_at, credential.last_used_at, credential.revoked_at FROM api_clients client LEFT JOIN api_credentials credential ON credential.client_uid = client.uid ORDER BY client.created_at DESC`).all() as Record<string, unknown>[]).map((row) => ({ ...row, assignedCountryCodes: parse(row.assigned_country_codes_json, []), assignedLocationReferenceCodes: parse(row.assigned_location_reference_codes_json, []), scopes: parse(row.scopes_json, []), key_hash: undefined, signing_secret: undefined }));
+    return (this.locations.db.prepare(`SELECT client.*, credential.key_prefix, credential.scopes_json, credential.expires_at, credential.last_used_at, credential.revoked_at FROM api_clients client LEFT JOIN api_credentials credential ON credential.client_uid = client.uid ORDER BY client.created_at DESC`).all() as Record<string, unknown>[]).map((row) => ({ ...row, assignedEconomicZones: parse(row.assigned_economic_zones_json, []), assignedRegionalBlocks: parse(row.assigned_regional_blocks_json, []), assignedCountryCodes: parse(row.assigned_country_codes_json, []), assignedLocationReferenceCodes: parse(row.assigned_location_reference_codes_json, []), scopes: parse(row.scopes_json, []), key_hash: undefined, signing_secret: undefined }));
   }
 
   revokeClient(uid: string) { return this.locations.transaction(() => { this.locations.db.prepare(`UPDATE api_clients SET status = 'revoked', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE uid = ?`).run(uid); this.locations.db.prepare(`UPDATE api_credentials SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE client_uid = ? AND revoked_at IS NULL`).run(uid); }); }

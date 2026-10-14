@@ -14,6 +14,7 @@ import { apiRoles, canReadLocation as canPrincipalReadLocation, hasCountryWideRe
 import { locationApiOpenApi } from './openApi.ts';
 import { ApiPlatform } from './apiPlatform.ts';
 import { buildCountryApiProfile } from './countryApiProfile.ts';
+import { buildApiScopeCatalog } from './apiScopeCatalog.ts';
 
 try {
   loadEnvFile(path.join(process.cwd(), '.env.local'));
@@ -172,6 +173,18 @@ async function startServer() {
   });
 
   app.get('/api/v1/admin/api-clients', authorizeOwner, (_request, response) => response.json({ items: apiPlatform.listClients() }));
+  app.get('/api/v1/admin/api-scope-catalog', authorizeOwner, (_request, response) => {
+    return response.json(buildApiScopeCatalog(locationDatabase.getCountries()));
+  });
+  app.get('/api/v1/admin/api-scope-locations', authorizeOwner, (request, response) => {
+    const countryCode = String(request.query.countryCode || '').trim().toUpperCase();
+    const search = String(request.query.search || '').trim();
+    if (!/^[A-Z]{2}$/.test(countryCode)) return response.status(400).json({ code: 'COUNTRY_REQUIRED', message: 'Select a valid country.' });
+    if (!locationDatabase.getCountryByCode(countryCode)) return response.status(404).json({ code: 'COUNTRY_NOT_FOUND', message: 'The selected country is not configured.' });
+    if (search.length < 2) return response.json({ items: [] });
+    const page = locationDatabase.listLocations(countryCode, { search, limit: 50, offset: 0 });
+    return response.json({ items: page.items.filter((location) => location.levelOrder > 0) });
+  });
   app.post('/api/v1/admin/api-clients', authorizeOwner, (request, response) => {
     try { return response.status(201).json(apiPlatform.createClient(request.body, actorFromRequest(request))); }
     catch (error) { return response.status(errorStatus(error)).json({ message: error instanceof Error ? error.message : 'Unable to create API client' }); }
@@ -181,11 +194,12 @@ async function startServer() {
   app.get('/api/v1/dataset-editions', (request, response) => {
     const countryCode = String(request.query.countryCode || '').toUpperCase();
     const rows = locationDatabase.db.prepare(`SELECT uid, country_code AS countryCode, edition, title, authority, effective_date AS effectiveDate, status, source_sha256 AS sourceSha256, statistics_json AS statistics, notes, created_at AS createdAt FROM location_dataset_editions WHERE (? = '' OR country_code = ?) ORDER BY effective_date DESC, created_at DESC`).all(countryCode, countryCode) as Record<string, unknown>[];
-    return response.json({ items: rows.map((row) => ({ ...row, statistics: JSON.parse(String(row.statistics)) })) });
+    return response.json({ items: rows.filter((row) => canReadCountry(request, String(row.countryCode))).map((row) => ({ ...row, statistics: JSON.parse(String(row.statistics)) })) });
   });
   app.get('/api/v1/dataset-editions/:uid/locations', (request, response) => {
     const edition = locationDatabase.db.prepare('SELECT * FROM location_dataset_editions WHERE uid = ?').get(routeParam(request, 'uid')) as Record<string, unknown> | undefined;
     if (!edition) return response.status(404).json({ message: 'Dataset edition not found' });
+    if (!canReadCountry(request, String(edition.country_code))) return response.status(403).json({ code: 'COUNTRY_SCOPE_REQUIRED', message: 'This client is not assigned to the dataset country.' });
     if (edition.country_code !== 'UG' || edition.edition !== '2025' || !candidateCrosswalk) return response.status(404).json({ message: 'Edition records are not available from this server.' });
     const match = String(request.query.match || 'all'); const search = String(request.query.search || '').trim().toUpperCase();
     if (!['all', 'exact', 'unmatched'].includes(match)) return response.status(400).json({ code: 'INVALID_MATCH_FILTER', message: 'match must be all, exact, or unmatched.' });
@@ -219,8 +233,10 @@ async function startServer() {
   };
   const hasCountryWideRead = (request: express.Request, countryCode: string) => principalHasCountryWideRead(apiPrincipal(request), countryCode);
   const canReadCountry = (request: express.Request, countryCode: string) => hasCountryWideRead(request, countryCode)
-    || apiPrincipal(request).assignedLocationReferenceCodes.some((referenceCode) =>
-      locationDatabase.getLocationByReferenceCode(referenceCode)?.countryCode === countryCode.toUpperCase());
+    || apiPrincipal(request).assignedLocationReferenceCodes.some((referenceCode) => {
+      const assignedRoot = locationDatabase.getLocationByReferenceCode(referenceCode);
+      return Boolean(assignedRoot && assignedRoot.countryCode === countryCode.toUpperCase() && canReadLocation(request, assignedRoot));
+    });
   const requireCountryRead = (request: express.Request, response: express.Response): boolean => {
     if (canReadCountry(request, routeParam(request, 'countryCode'))) return true;
     response.status(403).json({ code: 'COUNTRY_SCOPE_REQUIRED', message: 'This account is not assigned to the requested country.' });
@@ -239,17 +255,19 @@ async function startServer() {
     if (principal.identityType === 'machine' && !principal.scopes?.includes(scope)) return response.status(403).json({ code: 'API_SCOPE_REQUIRED', message: `The credential requires ${scope}.` });
     return authorizeLocationRead(request, response, next);
   };
-  const authorizeLocationContribution: express.RequestHandler = (request, response, next) => {
-    const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
-    if (!location) return response.status(404).json({ message: 'Location reference not found' });
+  const mayContributeToLocation = (request: express.Request, location: LocationRecord) => {
     const principal = apiPrincipal(request);
     const countryAssigned = principal.assignedCountryCodes.includes(location.countryCode);
     const locationAssigned = principal.assignedLocationReferenceCodes.length > 0 && canReadLocation(request, location);
-    const mayContribute = (principal.identityType === 'machine' && principal.scopes?.includes('locations:write') && canReadLocation(request, location))
+    return (principal.identityType === 'machine' && principal.scopes?.includes('locations:write') && canReadLocation(request, location))
       || principal.role === 'admin'
       || (principal.role === 'country_admin' && countryAssigned && canReadLocation(request, location))
       || (principal.role === 'contributor' && (countryAssigned || locationAssigned) && canReadLocation(request, location));
-    if (!mayContribute) return response.status(403).json({ code: 'LOCATION_WRITE_SCOPE_REQUIRED', message: 'This account is not authorized to update leadership for this location.' });
+  };
+  const authorizeLocationContribution: express.RequestHandler = (request, response, next) => {
+    const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
+    if (!location) return response.status(404).json({ message: 'Location reference not found' });
+    if (!mayContributeToLocation(request, location)) return response.status(403).json({ code: 'LOCATION_WRITE_SCOPE_REQUIRED', message: 'This account is not authorized to update this location.' });
     return next();
   };
   const authorizeLeadershipContribution: express.RequestHandler = (request, response, next) => {
@@ -388,12 +406,13 @@ async function startServer() {
     }
   });
 
-  app.post('/api/v1/countries/:countryCode/locations', authorize('contribute', (request) => routeParam(request, 'countryCode')), (request, response) => {
+  app.post('/api/v1/countries/:countryCode/locations', (request, response) => {
     try {
       const parent = locationDatabase.getLocationByReferenceCode(String(request.body.parentReferenceCode || ''));
       if (!parent || parent.countryCode !== routeParam(request, 'countryCode').toUpperCase()) {
         return response.status(404).json({ message: 'Parent location reference not found in this country' });
       }
+      if (!mayContributeToLocation(request, parent)) return response.status(403).json({ code: 'LOCATION_WRITE_SCOPE_REQUIRED', message: 'This account is not authorized to add locations below this parent.' });
       const created = locationDatabase.insertLocation({
         ...request.body,
         countryCode: routeParam(request, 'countryCode').toUpperCase(),
@@ -522,7 +541,7 @@ async function startServer() {
     }
   });
 
-  app.patch('/api/v1/locations/:referenceCode', authorize('contribute', countryFromReference), (request, response) => {
+  app.patch('/api/v1/locations/:referenceCode', authorizeLocationContribution, (request, response) => {
     try {
       const location = locationDatabase.getLocationByReferenceCode(routeParam(request, 'referenceCode'));
       if (!location) return response.status(404).json({ message: 'Location reference not found' });
@@ -600,7 +619,11 @@ async function startServer() {
 
   // Country-configurable hierarchy and canonical UUID-based location API.
   app.get('/api/location-registry/statistics', (request, response) => {
-    response.json(locationDatabase.getStatistics(request.query.countryCode?.toString()));
+    const countryCode = request.query.countryCode?.toString().toUpperCase();
+    const principal = apiPrincipal(request);
+    if (principal.identityType === 'machine' && !countryCode) return response.status(400).json({ code: 'COUNTRY_REQUIRED', message: 'Scoped machine clients must request statistics for one assigned country.' });
+    if (countryCode && !hasCountryWideRead(request, countryCode)) return response.status(403).json({ code: 'COUNTRY_SCOPE_REQUIRED', message: 'Country-wide statistics require a matching country, regional-block, or economic-zone boundary.' });
+    return response.json(locationDatabase.getStatistics(countryCode));
   });
 
   app.get('/api/location-registry/countries/:countryCode/schema', (request, response) => {
@@ -665,6 +688,8 @@ async function startServer() {
     const location = locationDatabase.getLocation(routeParam(request, 'uid'));
     if (!location) return response.status(404).json({ message: 'Location not found' });
     if (!canReadLocation(request, location)) return response.status(403).json({ code: 'LOCATION_SCOPE_REQUIRED', message: 'This account is not assigned to the requested location subtree.' });
+    const principal = apiPrincipal(request);
+    if (principal.identityType === 'machine' && !principal.scopes?.includes('geometry:read')) return response.status(403).json({ code: 'API_SCOPE_REQUIRED', message: 'The credential requires geometry:read.' });
     const geometry = locationDatabase.getGeometry(routeParam(request, 'uid'));
     return geometry ? response.json(geometry) : response.status(404).json({ message: 'Geometry not available for this location' });
   });
