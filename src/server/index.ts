@@ -181,8 +181,10 @@ async function startServer() {
     const search = String(request.query.search || '').trim();
     if (!/^[A-Z]{2}$/.test(countryCode)) return response.status(400).json({ code: 'COUNTRY_REQUIRED', message: 'Select a valid country.' });
     if (!locationDatabase.getCountryByCode(countryCode)) return response.status(404).json({ code: 'COUNTRY_NOT_FOUND', message: 'The selected country is not configured.' });
-    if (search.length < 2) return response.json({ items: [] });
-    const page = locationDatabase.listLocations(countryCode, { search, limit: 50, offset: 0 });
+    if (search.length === 1) return response.json({ items: [] });
+    const page = locationDatabase.listLocations(countryCode, search
+      ? { search, limit: 100, offset: 0 }
+      : { levelOrder: 1, limit: 100, offset: 0 });
     return response.json({ items: page.items.filter((location) => location.levelOrder > 0) });
   });
   app.post('/api/v1/admin/api-clients', authorizeOwner, (request, response) => {
