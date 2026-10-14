@@ -112,9 +112,9 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
                     </span>
                   );
                 })}
-                <select id="service-client-country" className={`h-7 min-w-44 flex-1 border-0 bg-transparent px-1 text-sm font-normal outline-none ${dark ? 'text-slate-200' : 'text-slate-800'}`} value="" onChange={(event) => { const code = event.target.value; if (code && !form.countries.includes(code)) setForm({ ...form, countries: [...form.countries, code] }); }}>
-                  <option value="">{form.countries.length ? 'Add another country' : 'Select a country to add'}</option>
-                  {countries.filter((country) => !form.countries.includes(country.countryCode)).map((country) => <option key={country.countryCode} value={country.countryCode}>{country.name} ({country.countryCode})</option>)}
+                <select id="service-client-country" style={{ colorScheme: dark ? 'dark' : 'light' }} className={`h-7 min-w-44 flex-1 border-0 px-1 text-sm font-normal outline-none ${dark ? 'bg-slate-950 text-slate-200' : 'bg-white text-slate-800'}`} value="" onChange={(event) => { const code = event.target.value; if (code && !form.countries.includes(code)) setForm({ ...form, countries: [...form.countries, code] }); }}>
+                  <option className={dark ? 'bg-slate-950 text-slate-200' : 'bg-white text-slate-800'} value="">{form.countries.length ? 'Add another country' : 'Select a country to add'}</option>
+                  {countries.filter((country) => !form.countries.includes(country.countryCode)).map((country) => <option className={dark ? 'bg-slate-950 text-slate-200' : 'bg-white text-slate-800'} key={country.countryCode} value={country.countryCode}>{country.name} ({country.countryCode})</option>)}
                 </select>
               </div>
               {form.countries.length === 0 && <p className="mt-1 text-xs font-normal text-slate-500">No country selected means no country-wide access.</p>}
