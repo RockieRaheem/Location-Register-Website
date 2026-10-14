@@ -15,6 +15,10 @@ dist-ssr
 .env.*
 !.env.example
 
+# Large local reference imports (see references/local-imports/README.md)
+references/local-imports/*
+!references/local-imports/README.md
+
 # Generated local location-registry databases and SQLite sidecars
 data/database/*.sqlite
 data/database/*.sqlite-shm
