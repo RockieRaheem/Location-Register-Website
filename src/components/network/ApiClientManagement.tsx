@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Check, Copy, KeyRound, Loader2, Plus, ShieldX, X } from 'lucide-react';
 import type { Theme } from '../../types';
 import {
@@ -59,6 +60,20 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   };
 
   useEffect(() => { void load(); }, []);
+
+  useEffect(() => {
+    if (!isCreateOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !saving) setIsCreateOpen(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isCreateOpen, saving]);
 
   useEffect(() => {
     if (scopeType !== 'location' || !locationCountry || locationSearch.trim().length === 1) {
@@ -124,18 +139,18 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
         </section>
       )}
 
-      <div className="flex justify-end">
-        <button type="button" aria-expanded={isCreateOpen} aria-controls="create-service-client-form" onClick={() => setIsCreateOpen((open) => !open)} className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-bold transition-colors ${isCreateOpen ? dark ? 'border border-slate-700 bg-slate-800 text-slate-200' : 'border border-slate-300 bg-white text-slate-700' : 'bg-yellow-500 text-slate-950 hover:bg-yellow-400'}`}>
-          {isCreateOpen ? <X size={16} /> : <Plus size={16} />}{isCreateOpen ? 'Close form' : 'Create service client'}
-        </button>
-      </div>
-
-      {isCreateOpen && (
-        <form id="create-service-client-form" onSubmit={submit} className={`rounded-xl border p-5 ${panel}`}>
-          <div className="mb-4 flex items-center gap-2">
-            <Plus size={18} className="text-yellow-500" />
-            <div><h3 className="font-bold">Create service client</h3><p className="mt-0.5 text-xs text-slate-500">Configure access, usage limits, and expiry before issuing the key.</p></div>
-          </div>
+      {isCreateOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setIsCreateOpen(false); }}>
+        <form id="create-service-client-form" onSubmit={submit} role="dialog" aria-modal="true" aria-labelledby="create-service-client-title" className={`flex max-h-[calc(100dvh-1.5rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border shadow-2xl sm:max-h-[calc(100dvh-3rem)] ${panel}`}>
+          <header className={`flex shrink-0 items-start justify-between gap-4 border-b px-5 py-4 sm:px-6 ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-yellow-500/15 text-yellow-500"><Plus size={18} /></span>
+              <div><h3 id="create-service-client-title" className="font-bold">Create service client</h3><p className="mt-0.5 text-xs leading-5 text-slate-500">Configure geographic access, permissions, usage limits, and expiry before issuing the key.</p></div>
+            </div>
+            <button type="button" disabled={saving} onClick={() => setIsCreateOpen(false)} aria-label="Close create service client" className={`rounded-lg p-2 transition-colors disabled:opacity-50 ${dark ? 'text-slate-400 hover:bg-slate-800 hover:text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}><X size={19} /></button>
+          </header>
+          <div className="overflow-y-auto px-5 py-5 sm:px-6">
+          {error && <p className="mb-4 rounded-lg bg-red-500/10 p-3 text-sm text-red-500">{error}</p>}
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm font-medium">Client name<input required autoFocus className={input} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
             <label className="text-sm font-medium">Geographic boundary
@@ -162,15 +177,23 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
             <legend className="text-sm font-medium">API permissions</legend><p className="mt-1 text-xs text-slate-500">Select only the operations this service needs.</p>
             <div className="mt-2 flex flex-wrap gap-2">{availableScopes.map((scope) => <label key={scope} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${dark ? 'border-slate-700' : 'border-slate-300'}`}><input type="checkbox" checked={form.scopes.includes(scope)} onChange={(event) => setForm({ ...form, scopes: event.target.checked ? [...form.scopes, scope] : form.scopes.filter((item) => item !== scope) })} />{scope}</label>)}</div>
           </fieldset>
-          <div className="mt-5 flex flex-wrap gap-2">
-            <button disabled={saving || !form.scopes.length || boundarySelectionCount === 0} className="flex h-10 items-center gap-2 rounded-lg bg-yellow-500 px-4 text-sm font-bold text-slate-950 disabled:opacity-50">{saving ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />} Create API key</button>
-            <button type="button" onClick={() => setIsCreateOpen(false)} className={`h-10 rounded-lg border px-4 text-sm font-bold ${dark ? 'border-slate-700 text-slate-300' : 'border-slate-300 text-slate-700'}`}>Cancel</button>
           </div>
+          <footer className={`flex shrink-0 flex-col-reverse gap-2 border-t px-5 py-4 sm:flex-row sm:justify-end sm:px-6 ${dark ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
+            <button type="button" disabled={saving} onClick={() => setIsCreateOpen(false)} className={`h-10 rounded-lg border px-4 text-sm font-bold disabled:opacity-50 ${dark ? 'border-slate-700 text-slate-300' : 'border-slate-300 bg-white text-slate-700'}`}>Cancel</button>
+            <button disabled={saving || !form.scopes.length || boundarySelectionCount === 0} className="flex h-10 items-center gap-2 rounded-lg bg-yellow-500 px-4 text-sm font-bold text-slate-950 disabled:opacity-50">{saving ? <Loader2 size={16} className="animate-spin" /> : <KeyRound size={16} />} Create API key</button>
+          </footer>
         </form>
+        </div>,
+        document.body,
       )}
 
       <section className={`rounded-xl border p-5 ${panel}`}>
-        <h3 className="font-bold">Service clients</h3>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div><h3 className="font-bold">Service clients</h3><p className="mt-1 text-xs text-slate-500">Create and manage credentials used by external systems.</p></div>
+          <button type="button" aria-expanded={isCreateOpen} aria-controls="create-service-client-form" onClick={() => { setError(''); setIsCreateOpen(true); }} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-yellow-500 px-4 text-sm font-bold text-slate-950 transition-colors hover:bg-yellow-400">
+            <Plus size={16} />Create service client
+          </button>
+        </div>
         {loading ? <Loader2 className="mt-5 animate-spin" /> : (
           <div className="mt-4 space-y-3">
             {clients.map((client) => (
