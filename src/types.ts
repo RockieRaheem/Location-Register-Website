@@ -339,6 +339,10 @@ export interface Country {
   currencyCode: string;
   countryCode: string;
   phoneCode: string;
+  /** IANA timezone used when a country-wide default is required. */
+  defaultTimeZone?: string;
+  /** All IANA timezones used by this country. */
+  timeZones?: string[];
   vat: number;
   numberOfAdminLevels?: number;
   numberOfElectoralLevels?: number;

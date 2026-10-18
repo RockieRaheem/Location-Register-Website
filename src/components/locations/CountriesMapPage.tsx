@@ -3,6 +3,7 @@ import { Theme, Shop, RegionalEconomicLevel, Country } from '../../types';
 import AfricaMap from './AfricaMap';
 import CountryDetailMap from './CountryDetailMap';
 import { UGANDA_ELECTORAL_COMMISSION_2022_METADATA } from '../../data/locations/ugandaElectoralCommission2022';
+import { useTimeZone } from '../../contexts/TimeZoneContext';
 
 interface CountriesMapPageProps {
     theme: Theme;
@@ -12,6 +13,7 @@ interface CountriesMapPageProps {
 }
 
 const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regionalLevels, countries }) => {
+    const { setCountryTimeZone } = useTimeZone();
     const [selectedCountry, setSelectedCountry] = useState<{ id: string; referenceCode?: string } | null>(null);
     const locationCounts = useMemo(() => ({
         UG: UGANDA_ELECTORAL_COMMISSION_2022_METADATA.statistics.uniqueFullVillagePaths,
@@ -56,7 +58,11 @@ const CountriesMapPage: React.FC<CountriesMapPageProps> = ({ theme, shops, regio
                         theme={theme}
                         countries={countries}
                         locationCounts={locationCounts}
-                        onCountryClick={(id, _name, referenceCode) => setSelectedCountry({ id, referenceCode })}
+                        onCountryClick={(id, _name, referenceCode) => {
+                            const country = countries?.find((item) => item.countryCode === id);
+                            setCountryTimeZone(id, country?.defaultTimeZone);
+                            setSelectedCountry({ id, referenceCode });
+                        }}
                     />
                 )}
             </div>

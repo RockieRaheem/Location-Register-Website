@@ -1,4 +1,5 @@
 import type { Country } from '../types.ts';
+import { countryTimeZoneConfig } from '../shared/timeZones.ts';
 
 export interface CountryMapAvailability {
   hasVerifiedGeometry: boolean;
@@ -19,6 +20,7 @@ export function buildCountryApiProfile(
   const referenceCode = country.referenceCode ?? null;
   const mapEndpoint = referenceCode ? `/api/v1/locations/${encodeURIComponent(referenceCode)}/map` : null;
   const geometryEndpoint = referenceCode ? `/api/v1/locations/${encodeURIComponent(referenceCode)}/geometry` : null;
+  const time = countryTimeZoneConfig(countryCode, country.timeZones, country.defaultTimeZone);
 
   return {
     referenceCode,
@@ -27,6 +29,12 @@ export function buildCountryApiProfile(
     economicZones: country.economicZones ?? [],
     countryCode,
     phoneCode: country.phoneCode,
+    time: {
+      defaultTimeZone: time.defaultTimeZone,
+      timeZones: time.timeZones,
+      storage: 'UTC',
+      displayFormat: 'hh:mm:ss A z',
+    },
     codes: {
       iso2: countryCode,
       callingCode: country.phoneCode,

@@ -21,7 +21,7 @@ const uganda: Country = {
 };
 
 describe('country API profile', () => {
-  it('publishes identity, flag, currency, denominations, and map discovery', () => {
+  it('publishes identity, flag, currency, denominations, map and timezone discovery', () => {
     const profile = buildCountryApiProfile(uganda, { hasVerifiedGeometry: true });
 
     expect(profile.codes).toEqual({ iso2: 'UG', callingCode: '+256' });
@@ -29,6 +29,12 @@ describe('country API profile', () => {
     expect(profile.currency.denominations).toEqual([
       { value: 50_000, label: '50,000', type: 'Note', status: 'Active' },
     ]);
+    expect(profile.time).toEqual({
+      defaultTimeZone: 'Africa/Kampala',
+      timeZones: ['Africa/Kampala'],
+      storage: 'UTC',
+      displayFormat: 'hh:mm:ss A z',
+    });
     expect(profile.map).toMatchObject({
       hasVerifiedGeometry: true,
       responseMode: 'geometry',

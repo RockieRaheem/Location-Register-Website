@@ -40,7 +40,7 @@ export const locationApiOpenApi = {
       },
       CountryProfile: {
         type: 'object',
-        required: ['referenceCode', 'name', 'continent', 'countryCode', 'phoneCode', 'codes', 'flag', 'currency', 'map', 'links'],
+        required: ['referenceCode', 'name', 'continent', 'countryCode', 'phoneCode', 'codes', 'flag', 'currency', 'time', 'map', 'links'],
         properties: {
           referenceCode: { type: ['string', 'null'], description: 'Immutable reference ID for the country root.' },
           name: { type: 'string' },
@@ -67,6 +67,16 @@ export const locationApiOpenApi = {
                 type: 'array',
                 items: { type: 'object', properties: { value: { type: 'number' }, label: { type: 'string' }, type: { type: 'string', enum: ['Note', 'Coin'] }, status: { type: 'string', enum: ['Active', 'Inactive'] }, frontImage: { type: 'string' }, backImage: { type: 'string' } } },
               },
+            },
+          },
+          time: {
+            type: 'object',
+            required: ['defaultTimeZone', 'timeZones', 'storage', 'displayFormat'],
+            properties: {
+              defaultTimeZone: { type: 'string', description: 'Default IANA timezone for country-wide displays.' },
+              timeZones: { type: 'array', items: { type: 'string' }, description: 'IANA timezones used by the country.' },
+              storage: { type: 'string', enum: ['UTC'], description: 'Canonical timestamp storage and interchange timezone.' },
+              displayFormat: { type: 'string', example: 'hh:mm:ss A z' },
             },
           },
           map: {

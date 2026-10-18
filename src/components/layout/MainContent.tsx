@@ -69,6 +69,8 @@ import MNOWalletSettingsPage from '../finance/MNOWalletSettingsPage';
 import MNOWalletTransactionsPage from '../finance/MNOWalletTransactionsPage';
 import ExchangeRatePage from '../finance/ExchangeRatePage';
 import LookupValuesPage from '../shared/LookupValuesPage';
+import CountryTimeClock from './CountryTimeClock';
+import { useTimeZone } from '../../contexts/TimeZoneContext';
 
 interface MainContentProps {
   theme: Theme;
@@ -235,6 +237,7 @@ const MainContent: React.FC<MainContentProps> = ({
   onLogout
 }) => {
   const { t } = useTranslation();
+  const { setCountryTimeZone } = useTimeZone();
   const [selectedCountryProfile, setSelectedCountryProfile] = useState<Country | null>(null);
 
   const handleViewShopProfile = (shop: Shop) => {
@@ -258,6 +261,7 @@ const MainContent: React.FC<MainContentProps> = ({
   }
 
   const handleViewCountryProfile = (country: Country) => {
+    setCountryTimeZone(country.countryCode, country.defaultTimeZone);
     setSelectedCountryProfile(country);
     onNavigate('country-profile');
   }
@@ -402,6 +406,7 @@ const MainContent: React.FC<MainContentProps> = ({
           <h1 className={`text-xl md:text-2xl font-semibold truncate ${theme === 'dark' ? 'text-slate-100' : 'text-slate-800'}`}>{t(`header.title.${activeView.replace(/-([a-z])/g, (g) => g[1].toUpperCase())}`, titles[activeView] || 'Dashboard')}</h1>
         </div>
         <div className="flex items-center space-x-2 md:space-x-4">
+          <CountryTimeClock theme={theme} countries={countries} />
           <div className="hidden md:block">
              <LanguageSelector theme={theme} language={language} onLanguageChange={setLanguage} />
           </div>

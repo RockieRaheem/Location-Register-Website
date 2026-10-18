@@ -67,6 +67,7 @@ Each result repeats the supplied path and returns the matched location containin
 | Method | Endpoint | Minimum permission |
 | --- | --- | --- |
 | `GET` | `/api/v1/countries` | Read |
+| `GET` | `/api/v1/countries/{countryCode}/profile` | Country identity, currency, flag, map and timezone metadata |
 | `GET` | `/api/v1/openapi.json` | Authenticated OpenAPI 3.1 contract |
 | `GET` | `/api/v1/countries/{countryCode}/schema` | Read |
 | `PUT` | `/api/v1/countries/{countryCode}/schema` | Country admin for country |
@@ -104,6 +105,10 @@ GET /api/v1/locations/{KAMPALA_REFERENCE_CODE}/subtree?maxDepth=4&limit=1000
 ```
 
 The same templates work unchanged for every country and every configured hierarchy level.
+
+## Time handling
+
+All persisted timestamps and API interchange values remain ISO 8601 UTC values. Clients should use the country profile's `time.defaultTimeZone` IANA identifier for country-wide displays. `time.timeZones` contains every configured timezone for countries spanning more than one zone, so the user can choose the applicable zone rather than receiving an incorrect national assumption. Dashboard times use `HOUR:MINUTE:SECOND AM/PM TIMEZONE`, for example `05:55:11 PM EAT`.
 
 ```bash
 curl -H "Authorization: Bearer $FIREBASE_ID_TOKEN" \
