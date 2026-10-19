@@ -1,1 +1,84 @@
 @import "tailwindcss";
+
+/* Shared native-control palette. Native select menus are rendered outside the
+   React tree on some platforms, so each option needs an explicit theme. */
+:root {
+  color-scheme: light;
+  --control-surface: #ffffff;
+  --control-surface-hover: #f1f5f9;
+  --control-text: #0f172a;
+  --control-muted: #475569;
+  --control-border: #cbd5e1;
+  --control-selected: #eab308;
+  --control-selected-text: #1e293b;
+}
+
+html.dark {
+  color-scheme: dark;
+  --control-surface: #020617;
+  --control-surface-hover: #1e293b;
+  --control-text: #f1f5f9;
+  --control-muted: #cbd5e1;
+  --control-border: #475569;
+  --control-selected: #eab308;
+  --control-selected-text: #0f172a;
+}
+
+select {
+  color-scheme: light;
+  accent-color: var(--control-selected);
+}
+
+html.dark select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: var(--control-surface) !important;
+  color: var(--control-text) !important;
+}
+
+select option:checked {
+  background: linear-gradient(var(--control-selected), var(--control-selected)) !important;
+  box-shadow: 0 0 0 100vmax var(--control-selected) inset;
+  color: var(--control-selected-text) !important;
+}
+
+select option:disabled {
+  color: var(--control-muted) !important;
+}
+
+select:focus-visible,
+[role="menu"] button:focus-visible,
+[role="listbox"] button:focus-visible {
+  outline: 2px solid var(--control-selected);
+  outline-offset: 2px;
+}
+
+[role="dialog"],
+[role="menu"],
+[role="listbox"] {
+  color-scheme: light;
+}
+
+html.dark [role="dialog"],
+html.dark [role="menu"],
+html.dark [role="listbox"] {
+  color-scheme: dark;
+}
+
+* {
+  scrollbar-color: var(--control-border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: var(--control-border) content-box;
+}

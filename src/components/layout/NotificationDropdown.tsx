@@ -66,7 +66,7 @@ const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ theme, noti
                 )}
             </button>
             {isOpen && (
-                <div className={`absolute right-0 mt-2 w-80 sm:w-96 rounded-md shadow-lg border z-20 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                <div role="region" aria-label="Notifications" className={`absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border shadow-xl sm:w-96 ${theme === 'dark' ? 'border-slate-700 bg-slate-900 text-slate-100 shadow-black/40' : 'border-slate-200 bg-white text-slate-900 shadow-slate-900/15'}`}>
                     <div className={`flex justify-between items-center p-3 border-b ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
                         <h3 className="font-semibold text-lg">Notifications</h3>
                         {unreadCount > 0 && (

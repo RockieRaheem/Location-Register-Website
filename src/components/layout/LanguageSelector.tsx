@@ -40,12 +40,12 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ theme, language, on
     }
 
     const dropdownMenuClasses = theme === 'dark'
-        ? 'bg-slate-800 border-slate-700'
-        : 'bg-white border-slate-200';
+        ? 'bg-slate-900 border-slate-700 text-slate-100 shadow-black/40'
+        : 'bg-white border-slate-200 text-slate-900 shadow-slate-900/15';
 
     const linkClasses = (isSelected: boolean) => {
-        const base = theme === 'dark' ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-700 hover:bg-slate-100';
-        const active = theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-slate-100 text-slate-900';
+        const base = theme === 'dark' ? 'text-slate-200 hover:bg-slate-800 hover:text-white' : 'text-slate-700 hover:bg-slate-100';
+        const active = theme === 'dark' ? 'bg-yellow-500/15 text-yellow-300' : 'bg-yellow-50 text-yellow-800';
         return isSelected ? `${base} ${active}` : base;
     }
 
@@ -69,7 +69,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ theme, language, on
             </button>
             {isOpen && (
                 <div
-                    className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg py-1 border z-10 ${dropdownMenuClasses}`}
+                    className={`absolute right-0 z-50 mt-2 w-48 overflow-hidden rounded-xl border py-1 shadow-xl ${dropdownMenuClasses}`}
                     role="menu"
                     aria-orientation="vertical"
                 >
