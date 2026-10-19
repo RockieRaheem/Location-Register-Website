@@ -49,6 +49,19 @@ select option:disabled {
   color: var(--control-muted) !important;
 }
 
+/* The compact clock controls use a quiet neutral selection treatment so they
+   do not cast a yellow/orange highlight across the dashboard header. */
+.country-time-select:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.country-time-select option:checked {
+  background: linear-gradient(var(--control-surface-hover), var(--control-surface-hover)) !important;
+  box-shadow: 0 0 0 100vmax var(--control-surface-hover) inset;
+  color: var(--control-text) !important;
+}
+
 select:focus-visible,
 [role="menu"] button:focus-visible,
 [role="listbox"] button:focus-visible {

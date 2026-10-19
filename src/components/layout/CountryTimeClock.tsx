@@ -27,10 +27,10 @@ const CountryTimeClock: React.FC<Props> = ({ theme, countries }) => {
     <div className={`hidden lg:flex items-center gap-2 rounded-lg border px-2 py-1.5 ${control}`} aria-label="Country local time">
       <Clock3 size={16} className="text-yellow-500" aria-hidden="true" />
       <span className="min-w-[132px] font-mono text-xs font-semibold tabular-nums">{formatTime(now)}</span>
-      <select aria-label="Time country" style={{ colorScheme: dark ? 'dark' : 'light' }} value={countryCode} onChange={(event) => setCountryTimeZone(event.target.value)} className={`max-w-28 rounded-md border px-2 py-1 text-xs outline-none transition-colors focus:border-yellow-500 ${control}`}>
+      <select aria-label="Time country" style={{ colorScheme: dark ? 'dark' : 'light' }} value={countryCode} onChange={(event) => setCountryTimeZone(event.target.value)} className={`country-time-select max-w-28 rounded-md border px-2 py-1 text-xs outline-none transition-colors ${dark ? 'focus:border-slate-500' : 'focus:border-slate-400'} ${control}`}>
         {countries.map((item) => <option className={dark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'} key={item.countryCode} value={item.countryCode}>{item.name}</option>)}
       </select>
-      {config.timeZones.length > 1 && <select aria-label="Country timezone" style={{ colorScheme: dark ? 'dark' : 'light' }} value={timeZone} onChange={(event) => setTimeZone(event.target.value)} className={`max-w-36 rounded-md border px-2 py-1 text-xs outline-none transition-colors focus:border-yellow-500 ${control}`}>
+      {config.timeZones.length > 1 && <select aria-label="Country timezone" style={{ colorScheme: dark ? 'dark' : 'light' }} value={timeZone} onChange={(event) => setTimeZone(event.target.value)} className={`country-time-select max-w-36 rounded-md border px-2 py-1 text-xs outline-none transition-colors ${dark ? 'focus:border-slate-500' : 'focus:border-slate-400'} ${control}`}>
         {config.timeZones.map((zone) => <option className={dark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'} key={zone} value={zone}>{zone.replaceAll('_', ' ')}</option>)}
       </select>}
     </div>
