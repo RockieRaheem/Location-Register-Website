@@ -15,6 +15,7 @@ import { locationApiOpenApi } from './openApi.ts';
 import { ApiPlatform } from './apiPlatform.ts';
 import { buildCountryApiProfile } from './countryApiProfile.ts';
 import { buildApiScopeCatalog } from './apiScopeCatalog.ts';
+import { corsOptions, securityHeaders } from './security.ts';
 
 try {
   loadEnvFile(path.join(process.cwd(), '.env.local'));
@@ -92,10 +93,12 @@ async function startServer() {
   const app = express();
   const httpServer = createHttpServer(app);
   const port = Number(process.env.PORT || 3000);
+  app.disable('x-powered-by');
   app.set('trust proxy', 1);
   app.use(apiPlatform.requestContext());
   app.use(apiPlatform.versionHeaders());
-  app.use(cors());
+  app.use(securityHeaders);
+  app.use(cors(corsOptions()));
   app.use(express.json({ limit: '1mb' }));
   app.use('/api', authenticateApiRequest);
   app.use('/api', apiPlatform.usageLimits());
@@ -210,10 +213,10 @@ async function startServer() {
     return response.json({ edition: { uid: edition.uid, countryCode: edition.country_code, edition: edition.edition, status: edition.status }, items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset, reconciliation: candidateCrosswalk.report });
   });
 
-  app.post('/api/v1/webhooks', (request, response) => {
+  app.post('/api/v1/webhooks', async (request, response) => {
     const principal = apiPrincipal(request);
     if (principal.identityType !== 'machine' || !principal.clientId || !principal.scopes?.includes('webhooks:manage')) return response.status(403).json({ code: 'WEBHOOK_SCOPE_REQUIRED', message: 'A machine credential with webhooks:manage is required.' });
-    try { return response.status(201).json(apiPlatform.createWebhook(principal.clientId, request.body.url, Array.isArray(request.body.events) ? request.body.events : [])); }
+    try { return response.status(201).json(await apiPlatform.createWebhook(principal.clientId, request.body.url, Array.isArray(request.body.events) ? request.body.events : [])); }
     catch (error) { return response.status(400).json({ message: error instanceof Error ? error.message : 'Unable to create webhook' }); }
   });
   app.get('/api/v1/webhooks', (request, response) => {
@@ -750,11 +753,11 @@ async function startServer() {
   }));
   app.use((error: unknown, request: express.Request, response: express.Response, next: express.NextFunction) => {
     if (!request.path.startsWith('/api')) return next(error);
-    const message = error instanceof Error ? error.message : 'Unexpected API error';
     const malformedJson = error instanceof SyntaxError && 'body' in error;
+    if (!malformedJson) console.error('Unhandled API request error', { requestId: response.getHeader('X-Request-ID'), error });
     return response.status(malformedJson ? 400 : 500).json({
       code: malformedJson ? 'INVALID_JSON' : 'INTERNAL_API_ERROR',
-      message: malformedJson ? 'The request body is not valid JSON.' : message,
+      message: malformedJson ? 'The request body is not valid JSON.' : 'An unexpected server error occurred.',
       requestId: response.getHeader('X-Request-ID'),
     });
   });

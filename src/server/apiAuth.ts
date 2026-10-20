@@ -7,7 +7,9 @@ export type { ApiPermission, ApiPrincipal, ApiRole } from './apiPolicy.ts';
 const principals = new WeakMap<Request, ApiPrincipal>();
 let apiKeyVerifier: ((key: string) => ApiPrincipal | null) | undefined;
 const projectId = process.env.FIREBASE_PROJECT_ID || 'any-location-36e76';
-const checkRevokedTokens = process.env.FIREBASE_CHECK_REVOKED_TOKENS === 'true';
+const checkRevokedTokens = process.env.FIREBASE_CHECK_REVOKED_TOKENS
+  ? process.env.FIREBASE_CHECK_REVOKED_TOKENS === 'true'
+  : process.env.NODE_ENV === 'production';
 function configuredOwnerEmails(): Set<string> {
   return new Set((process.env.OWNER_EMAILS || '')
     .split(',')

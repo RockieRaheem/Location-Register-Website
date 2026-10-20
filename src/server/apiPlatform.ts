@@ -1,15 +1,26 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { isIP } from 'node:net';
+import { lookup } from 'node:dns/promises';
 import type express from 'express';
 import type { LocationDatabase } from './locationDatabase.ts';
 import { apiPrincipal, type ApiPrincipal } from './apiAuth.ts';
 import { buildApiScopeCatalog, resolveApiScopeCountries } from './apiScopeCatalog.ts';
+import { isPrivateNetworkAddress } from './networkSecurity.ts';
 
 const machineScopes = new Set(['locations:read', 'geometry:read', 'leadership:read', 'locations:write', 'leadership:manage', 'audit:read', 'webhooks:manage']);
 const minuteBuckets = new Map<string, { minute: number; count: number }>();
 const json = (value: unknown) => JSON.stringify(value);
 const parse = <T>(value: unknown, fallback: T): T => { try { return typeof value === 'string' ? JSON.parse(value) as T : fallback; } catch { return fallback; } };
 const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
+const webhookEvents = new Set(['location.created', 'location.updated', 'location.moved', 'location.deleted', 'leadership.changed']);
+
+function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number, field: string): number {
+  if (value == null) return fallback;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new Error(`${field} must be an integer from ${minimum} to ${maximum}`);
+  }
+  return parsed;
+}
 
 export interface ApiClientInput {
   name: string; description?: string; scopes: string[]; assignedCountryCodes?: string[];
@@ -114,6 +125,9 @@ export class ApiPlatform {
 
   createClient(input: ApiClientInput, actor: string) {
     const name = String(input.name || '').trim(); if (!name) throw new Error('name is required');
+    if (name.length > 120) throw new Error('name must not exceed 120 characters');
+    const description = String(input.description || '').trim();
+    if (description.length > 1000) throw new Error('description must not exceed 1000 characters');
     const scopes = [...new Set(input.scopes || [])]; if (!scopes.length || scopes.some((scope) => !machineScopes.has(scope))) throw new Error('Select one or more valid scopes');
     const clientUid = randomUUID(); const credentialUid = randomUUID(); const prefix = randomBytes(6).toString('hex'); const secret = randomBytes(32).toString('base64url'); const apiKey = `al_live_${prefix}_${secret}`;
     const catalog = buildApiScopeCatalog(this.locations.getCountries());
@@ -132,9 +146,12 @@ export class ApiPlatform {
     if (references.length > 100) throw new Error('Assign at most 100 location scope roots to one client');
     const invalidReference = references.find((code) => !this.locations.getLocationByReferenceCode(code)); if (invalidReference) throw new Error(`Location reference not found: ${invalidReference}`);
     const countryRootReference = references.find((code) => this.locations.getLocationByReferenceCode(code)?.levelOrder === 0); if (countryRootReference) throw new Error('Use a country scope instead of assigning a country root as a specific location');
-    if (input.expiresAt && (Number.isNaN(Date.parse(input.expiresAt)) || input.expiresAt <= new Date().toISOString())) throw new Error('expiresAt must be a future ISO date');
+    const expiryTime = input.expiresAt ? Date.parse(input.expiresAt) : null;
+    if (input.expiresAt && (Number.isNaN(expiryTime) || Number(expiryTime) <= Date.now())) throw new Error('expiresAt must be a future ISO date');
+    const requestsPerMinute = boundedInteger(input.requestsPerMinute, 60, 1, 10_000, 'requestsPerMinute');
+    const dailyQuota = boundedInteger(input.dailyQuota, 10_000, 1, 10_000_000, 'dailyQuota');
     this.locations.transaction(() => {
-      this.locations.db.prepare('INSERT INTO api_clients(uid, name, description, assigned_economic_zones_json, assigned_regional_blocks_json, assigned_country_codes_json, assigned_location_reference_codes_json, requests_per_minute, daily_quota, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(clientUid, name, input.description || null, json(economicZones), json(regionalBlocks), json(countries), json(references), input.requestsPerMinute || 60, input.dailyQuota || 10000, actor);
+      this.locations.db.prepare('INSERT INTO api_clients(uid, name, description, assigned_economic_zones_json, assigned_regional_blocks_json, assigned_country_codes_json, assigned_location_reference_codes_json, requests_per_minute, daily_quota, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(clientUid, name, description || null, json(economicZones), json(regionalBlocks), json(countries), json(references), requestsPerMinute, dailyQuota, actor);
       this.locations.db.prepare('INSERT INTO api_credentials(uid, client_uid, key_prefix, key_hash, scopes_json, expires_at) VALUES (?, ?, ?, ?, ?, ?)').run(credentialUid, clientUid, prefix, sha256(apiKey), json(scopes), input.expiresAt || null);
     });
     return { clientUid, credentialUid, apiKey, keyPrefix: prefix, scopes, warning: 'Copy this API key now. It cannot be retrieved again.' };
@@ -146,13 +163,20 @@ export class ApiPlatform {
 
   revokeClient(uid: string) { return this.locations.transaction(() => { this.locations.db.prepare(`UPDATE api_clients SET status = 'revoked', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE uid = ?`).run(uid); this.locations.db.prepare(`UPDATE api_credentials SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE client_uid = ? AND revoked_at IS NULL`).run(uid); }); }
 
-  createWebhook(clientUid: string, url: string, events: string[]) {
+  async createWebhook(clientUid: string, url: string, events: string[]) {
     const parsedUrl = new URL(url); if (parsedUrl.protocol !== 'https:') throw new Error('Webhook URL must use HTTPS');
-    const hostname = parsedUrl.hostname.toLowerCase(); const ipVersion = isIP(hostname);
-    if (hostname === 'localhost' || hostname.endsWith('.local') || (ipVersion && /^(127\.|10\.|192\.168\.|169\.254\.|::1$|fc|fd)/i.test(hostname))) throw new Error('Webhook URL must not target a local or private network address');
+    if (parsedUrl.username || parsedUrl.password) throw new Error('Webhook URL must not contain credentials');
+    const hostname = parsedUrl.hostname.toLowerCase();
+    if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local') || isPrivateNetworkAddress(hostname)) throw new Error('Webhook URL must not target a local or private network address');
+    if (!isPrivateNetworkAddress(hostname)) {
+      const resolved = await lookup(hostname.replace(/^\[|\]$/g, ''), { all: true });
+      if (resolved.length === 0 || resolved.some(({ address }) => isPrivateNetworkAddress(address))) throw new Error('Webhook hostname must resolve only to public network addresses');
+    }
+    const uniqueEvents = [...new Set(events.map(String))];
+    if (uniqueEvents.length === 0 || uniqueEvents.length > webhookEvents.size || uniqueEvents.some((event) => !webhookEvents.has(event))) throw new Error('Select one or more supported webhook events');
     const uid = randomUUID(); const secret = randomBytes(32).toString('base64url');
-    this.locations.db.prepare('INSERT INTO webhook_subscriptions(uid, client_uid, url, events_json, signing_secret) VALUES (?, ?, ?, ?, ?)').run(uid, clientUid, parsedUrl.toString(), json([...new Set(events)]), secret);
-    return { uid, url: parsedUrl.toString(), events, signingSecret: secret, warning: 'Copy the signing secret now.' };
+    this.locations.db.prepare('INSERT INTO webhook_subscriptions(uid, client_uid, url, events_json, signing_secret) VALUES (?, ?, ?, ?, ?)').run(uid, clientUid, parsedUrl.toString(), json(uniqueEvents), secret);
+    return { uid, url: parsedUrl.toString(), events: uniqueEvents, signingSecret: secret, warning: 'Copy the signing secret now.' };
   }
 
   listWebhooks(clientUid: string) {
@@ -171,7 +195,10 @@ export class ApiPlatform {
       const deliveryUid = randomUUID();
       this.locations.db.prepare('INSERT INTO webhook_deliveries(uid, subscription_uid, event_id, event_type, attempt) VALUES (?, ?, ?, ?, ?)').run(deliveryUid, String(row.uid), eventId, eventType, attempt);
       try {
-        const result = await fetch(String(row.url), { method: 'POST', headers: { 'content-type': 'application/json', 'x-any-location-event': eventType, 'x-any-location-delivery': eventId, 'x-any-location-signature': `sha256=${signature}` }, body, signal: AbortSignal.timeout(10000) });
+        const target = new URL(String(row.url));
+        const resolved = await lookup(target.hostname.replace(/^\[|\]$/g, ''), { all: true });
+        if (resolved.length === 0 || resolved.some(({ address }) => isPrivateNetworkAddress(address))) throw new Error('Webhook hostname resolved to a private network address');
+        const result = await fetch(target, { method: 'POST', redirect: 'error', headers: { 'content-type': 'application/json', 'x-any-location-event': eventType, 'x-any-location-delivery': eventId, 'x-any-location-signature': `sha256=${signature}` }, body, signal: AbortSignal.timeout(10000) });
         this.locations.db.prepare('UPDATE webhook_deliveries SET response_status = ?, delivered_at = CASE WHEN ? BETWEEN 200 AND 299 THEN strftime(\'%Y-%m-%dT%H:%M:%fZ\', \'now\') END WHERE uid = ?').run(result.status, result.status, deliveryUid);
         if (result.ok) return;
       } catch (error) { this.locations.db.prepare('UPDATE webhook_deliveries SET error_message = ? WHERE uid = ?').run(String(error).slice(0, 1000), deliveryUid); }

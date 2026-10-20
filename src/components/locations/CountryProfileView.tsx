@@ -516,20 +516,15 @@ const DEFAULT_DENOMINATIONS_MAP: Record<string, CurrencyDenominator[]> = {
 };
 
 const FlagIcon: React.FC<{ countryCode: string; countryName: string; className?: string }> = ({ countryCode, countryName, className = "w-16 h-11" }) => {
+    const [failed, setFailed] = React.useState(false);
     return (
         <div className={`${className} flex-shrink-0 flex items-center justify-center rounded-lg overflow-hidden shadow-md bg-slate-800 border border-slate-700/80`}>
-            <img 
+            {failed ? <span className="text-xs font-bold text-yellow-400 font-mono">{countryCode}</span> : <img
                 src={`https://flagcdn.com/w160/${countryCode.toLowerCase()}.png`} 
                 alt={`Flag of ${countryName}`} 
                 className="w-full h-full object-cover"
-                onError={(e) => {
-                    const target = e.currentTarget;
-                    target.style.display = 'none';
-                    if (target.parentElement) {
-                        target.parentElement.innerHTML = `<span class="text-xs font-bold text-yellow-400 font-mono">${countryCode}</span>`;
-                    }
-                }}
-            />
+                onError={() => setFailed(true)}
+            />}
         </div>
     );
 };

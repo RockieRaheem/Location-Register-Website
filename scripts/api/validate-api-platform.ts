@@ -25,12 +25,14 @@ try {
   const blockClient = platform.createClient({ name: 'Block client', scopes: ['locations:read'], assignedRegionalBlocks: ['EAC'] }, 'automated-validation');
   assert.deepEqual(platform.verifyApiKey(blockClient.apiKey)?.assignedCountryCodes, ['KE', 'UG']);
   assert.throws(() => platform.createClient({ name: 'Ambiguous client', scopes: ['locations:read'], assignedCountryCodes: ['UG'], assignedRegionalBlocks: ['EAC'] }, 'automated-validation'), /exactly one geographic scope type/);
+  assert.throws(() => platform.createClient({ name: 'Invalid quota', scopes: ['locations:read'], assignedCountryCodes: ['UG'], requestsPerMinute: -1 }, 'automated-validation'), /requestsPerMinute/);
+  assert.throws(() => platform.createClient({ name: 'Invalid expiry', scopes: ['locations:read'], assignedCountryCodes: ['UG'], expiresAt: new Date(Date.now() - 1000).toISOString() }, 'automated-validation'), /future ISO date/);
   const credential = database.db.prepare('SELECT key_hash FROM api_credentials WHERE client_uid = ?').get(created.clientUid) as { key_hash: string };
   assert.notEqual(credential.key_hash, created.apiKey);
   assert.equal(credential.key_hash.length, 64);
   platform.revokeClient(created.clientUid);
   assert.equal(platform.verifyApiKey(created.apiKey), null);
-  console.log(JSON.stringify({ valid: true, hashedCredential: true, scopedMachinePrincipal: true, geographicBoundaryExpansion: true, ambiguousBoundaryRejected: true, immediateRevocation: true }, null, 2));
+  console.log(JSON.stringify({ valid: true, hashedCredential: true, scopedMachinePrincipal: true, geographicBoundaryExpansion: true, ambiguousBoundaryRejected: true, inputBoundsEnforced: true, immediateRevocation: true }, null, 2));
 } finally {
   database.close();
 }

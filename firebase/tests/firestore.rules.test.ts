@@ -16,7 +16,9 @@ beforeAll(async () => {
   });
 });
 
-afterAll(async () => testEnv.cleanup());
+afterAll(async () => {
+  if (testEnv) await testEnv.cleanup();
+});
 beforeEach(async () => testEnv.clearFirestore());
 
 async function seedRegistry() {

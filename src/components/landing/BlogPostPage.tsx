@@ -4,6 +4,7 @@ import Header from '../layout/Header';
 import { Footer } from './LandingComponents';
 import { BlogPost } from '../../types';
 import Icon from '../shared/Icon';
+import { plainTextFromHtml } from '../../utils/safeText';
 
 interface BlogPostPageProps {
     post: BlogPost;
@@ -77,10 +78,9 @@ const BlogPostPage: React.FC<BlogPostPageProps> = ({ post, onBack, onOpenSignup,
                     </div>
 
                     {/* Content Body */}
-                    <div 
-                        className="prose prose-lg prose-slate max-w-none prose-headings:font-bold prose-a:text-yellow-600 hover:prose-a:text-yellow-500 prose-img:rounded-xl"
-                        dangerouslySetInnerHTML={{ __html: post.content || `<p>${post.excerpt}</p>` }}
-                    />
+                    <div className="prose prose-lg prose-slate max-w-none whitespace-pre-line">
+                        {plainTextFromHtml(post.content || post.excerpt)}
+                    </div>
 
                     {/* Tags / Footer of Article */}
                     <div className="mt-12 pt-8 border-t border-slate-200">

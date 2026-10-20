@@ -4,10 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.x || 24.x"
   },
   "overrides": {
-    "qs": "^6.16.0"
+    "qs": "^6.16.0",
+    "@grpc/grpc-js": "^1.14.6"
   },
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/server/index.ts",
@@ -26,8 +27,8 @@
     "build:uganda-ec-2025-candidate": "tsx scripts/data/build-uganda-ec-2025-candidate.ts",
     "reconcile:uganda-ec-2025": "tsx scripts/data/reconcile-uganda-ec-2025.ts",
     "api:validate": "tsx scripts/api/validate-api-platform.ts",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:rules": "firebase emulators:exec --only firestore \"npm test -- --runInBand\"",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=firebase/tests",
+    "test:rules": "firebase emulators:exec --only firestore \"node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand firebase/tests/firestore.rules.test.ts\"",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "lint:rules": "eslint firebase/firestore.rules firebase/storage.rules"

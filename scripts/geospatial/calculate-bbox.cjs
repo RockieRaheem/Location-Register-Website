@@ -2,18 +2,15 @@
 const fs = require('fs');
 
 const content = fs.readFileSync('src/data/maps/generated/africaPaths.ts', 'utf8');
-const match = content.match(/export const africaDetailedPaths = (\[[\s\S]*?\]);/);
-if (!match) {
-    console.error('Could not find africaDetailedPaths');
+const paths = [...content.matchAll(/"d":\s*"([^"]+)"/g)].map((match) => match[1]);
+if (paths.length === 0) {
+    console.error('Could not find map paths');
     process.exit(1);
 }
 
-const paths = eval(match[1]);
-
 let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
 
-paths.forEach(p => {
-    const d = p.d;
+paths.forEach(d => {
     const coords = d.match(/[-+]?[0-9]*\.?[0-9]+/g);
     if (coords) {
         for (let i = 0; i < coords.length; i += 2) {
