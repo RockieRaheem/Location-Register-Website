@@ -25,7 +25,8 @@ const availableScopes = [
 
 const clientPageSizes = [5, 10, 20];
 
-type GeographicScopeType = 'economic-zone' | 'regional-block' | 'country' | 'location';
+type GeographicScopeType = 'economic-zone' | 'regional-block' | 'country';
+type CountryCoverage = 'whole-country' | 'specific-hierarchy';
 
 const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [clients, setClients] = useState<MachineApiClient[]>([]);
@@ -37,6 +38,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [scopeType, setScopeType] = useState<GeographicScopeType>('country');
+  const [countryCoverage, setCountryCoverage] = useState<CountryCoverage>('whole-country');
   const [locationCountry, setLocationCountry] = useState('UG');
   const [locationSearch, setLocationSearch] = useState('');
   const [locationResults, setLocationResults] = useState<ApiScopeLocationOption[]>([]);
@@ -92,7 +94,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   }, [isCreateOpen, saving]);
 
   useEffect(() => {
-    if (scopeType !== 'location' || !locationCountry || locationSearch.trim().length === 1) {
+    if (scopeType !== 'country' || countryCoverage !== 'specific-hierarchy' || !locationCountry || locationSearch.trim().length === 1) {
       setLocationResults([]);
       return undefined;
     }
@@ -106,7 +108,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
       } finally { setLocationsLoading(false); }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [scopeType, locationCountry, locationSearch, selectedLocations]);
+  }, [scopeType, countryCoverage, locationCountry, locationSearch, selectedLocations]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault(); setSaving(true); setError('');
@@ -117,8 +119,8 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
         scopes: form.scopes,
         assignedEconomicZones: scopeType === 'economic-zone' ? form.economicZones : [],
         assignedRegionalBlocks: scopeType === 'regional-block' ? form.regionalBlocks : [],
-        assignedCountryCodes: scopeType === 'country' ? form.countries : [],
-        assignedLocationReferenceCodes: scopeType === 'location' ? selectedLocations.map((location) => location.referenceCode) : [],
+        assignedCountryCodes: scopeType === 'country' && countryCoverage === 'whole-country' ? form.countries : [],
+        assignedLocationReferenceCodes: scopeType === 'country' && countryCoverage === 'specific-hierarchy' ? selectedLocations.map((location) => location.referenceCode) : [],
         requestsPerMinute: form.rpm,
         dailyQuota: form.quota,
         expiresAt: form.expiresAt ? new Date(`${form.expiresAt}T23:59:59Z`).toISOString() : undefined,
@@ -136,12 +138,30 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const revoke = async (uid: string) => { await revokeMachineApiClient(uid); await load(); };
   const changeScopeType = (nextType: GeographicScopeType) => {
     setScopeType(nextType);
+    setCountryCoverage('whole-country');
     setForm((current) => ({ ...current, economicZones: [], regionalBlocks: [], countries: [] }));
     setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
   };
+  const changeCountries = (values: string[]) => {
+    const nextCountries = countryCoverage === 'specific-hierarchy' ? values.slice(-1) : values;
+    setForm((current) => ({ ...current, countries: nextCountries }));
+    if (countryCoverage === 'specific-hierarchy') {
+      setLocationCountry(nextCountries[0] || '');
+      setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
+    }
+  };
+  const changeCountryCoverage = (coverage: CountryCoverage) => {
+    setCountryCoverage(coverage);
+    setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
+    if (coverage === 'specific-hierarchy') {
+      const countryCode = form.countries[0] || locationCountry || catalog.countries[0]?.countryCode || '';
+      setLocationCountry(countryCode);
+      setForm((current) => ({ ...current, countries: countryCode ? [countryCode] : [] }));
+    }
+  };
   const boundarySelectionCount = scopeType === 'economic-zone' ? form.economicZones.length
     : scopeType === 'regional-block' ? form.regionalBlocks.length
-      : scopeType === 'country' ? form.countries.length : selectedLocations.length;
+      : countryCoverage === 'whole-country' ? form.countries.length : selectedLocations.length;
 
   return (
     <div className="space-y-4">
@@ -172,18 +192,26 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
             <label className="text-sm font-medium">Client name<input required autoFocus className={input} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
             <label className="text-sm font-medium">Geographic boundary
               <select className={input} style={{ colorScheme: dark ? 'dark' : 'light' }} value={scopeType} onChange={(event) => changeScopeType(event.target.value as GeographicScopeType)}>
-                <option value="economic-zone">Economic zone</option><option value="regional-block">Regional block</option><option value="country">Country</option><option value="location">Specific locations and their descendants</option>
+                <option value="economic-zone">Economic zone</option><option value="regional-block">Regional block</option><option value="country">Country and its hierarchy</option>
               </select>
             </label>
             <div className="md:col-span-2">
               {scopeType === 'economic-zone' && <ScopeMultiSelect label="Economic zones" placeholder="Select an economic zone" selected={form.economicZones} options={catalog.economicZones.map((zone) => ({ code: zone.code, name: zone.name, detail: `${zone.countryCodes.length} countries` }))} dark={dark} onChange={(values) => setForm({ ...form, economicZones: values })} />}
               {scopeType === 'regional-block' && <ScopeMultiSelect label="Regional blocks" placeholder="Select a regional block" selected={form.regionalBlocks} options={catalog.regionalBlocks.map((block) => ({ code: block.code, name: block.name, detail: `${block.countryCodes.length} countries` }))} dark={dark} onChange={(values) => setForm({ ...form, regionalBlocks: values })} />}
-              {scopeType === 'country' && <ScopeMultiSelect label="Countries" placeholder="Select a country" selected={form.countries} options={catalog.countries.map((country) => ({ code: country.countryCode, name: country.name, detail: country.countryCode }))} dark={dark} onChange={(values) => setForm({ ...form, countries: values })} />}
-              {scopeType === 'location' && <div className="grid gap-3 md:grid-cols-[minmax(180px,0.35fr)_1fr]">
-                <label className="text-sm font-medium">Country to search<select className={input} style={{ colorScheme: dark ? 'dark' : 'light' }} value={locationCountry} onChange={(event) => { setLocationCountry(event.target.value); setLocationSearch(''); setLocationResults([]); }}><option value="">Select country</option>{catalog.countries.map((country) => <option key={country.countryCode} value={country.countryCode}>{country.name} ({country.countryCode})</option>)}</select></label>
-                <div className="grid gap-2"><label className="text-sm font-medium" htmlFor="service-client-location-search">Filter locations <span className={`font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>(optional)</span><input id="service-client-location-search" disabled={!locationCountry} className={input} value={locationSearch} onChange={(event) => setLocationSearch(event.target.value)} placeholder="Type at least 2 characters to search every level" /></label><div className="text-sm font-medium"><label htmlFor="service-client-location">Location scopes</label><div className={`mt-1.5 flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1 ${dark ? 'border-slate-600 bg-slate-950 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}>{selectedLocations.map((location) => <span key={location.referenceCode} className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-bold ${dark ? 'border-slate-600 bg-slate-800 text-slate-100' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>{location.name}<span className={`font-normal ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{location.levelName}</span><button type="button" onClick={() => setSelectedLocations((items) => items.filter((item) => item.referenceCode !== location.referenceCode))} aria-label={`Remove ${location.name}`} className="rounded p-0.5 hover:bg-red-500/15 hover:text-red-500"><X size={12} /></button></span>)}<select id="service-client-location" disabled={!locationCountry || locationsLoading} style={{ colorScheme: dark ? 'dark' : 'light' }} className={`h-7 min-w-56 flex-1 border-0 px-1 text-sm font-normal outline-none ${dark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`} value="" onChange={(event) => { const location = locationResults.find((item) => item.referenceCode === event.target.value); if (location) { setSelectedLocations((items) => [...items, location]); setLocationSearch(''); } }}><option value="">{locationsLoading ? 'Loading locations…' : locationSearch.trim().length >= 2 ? 'Select a matching location' : 'Select a region or search for a lower level'}</option>{locationResults.map((location) => <option className={dark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'} key={location.referenceCode} value={location.referenceCode}>{location.name} — {location.levelName}</option>)}</select></div></div></div>
+              {scopeType === 'country' && <div className="space-y-4">
+                {countryCoverage === 'whole-country'
+                  ? <ScopeMultiSelect label="Countries" placeholder="Select a country" selected={form.countries} options={catalog.countries.map((country) => ({ code: country.countryCode, name: country.name, detail: country.countryCode }))} dark={dark} onChange={changeCountries} />
+                  : <label className="block text-sm font-medium">Country<select className={input} style={{ colorScheme: dark ? 'dark' : 'light' }} value={form.countries[0] || ''} onChange={(event) => changeCountries(event.target.value ? [event.target.value] : [])}><option value="">Select a country</option>{catalog.countries.map((country) => <option key={country.countryCode} value={country.countryCode}>{country.name} ({country.countryCode})</option>)}</select></label>}
+                <fieldset><legend className="text-sm font-medium">Coverage within the country</legend><div className="mt-2 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Country coverage">
+                  <button type="button" role="radio" aria-checked={countryCoverage === 'whole-country'} onClick={() => changeCountryCoverage('whole-country')} className={`rounded-xl border p-3 text-left transition-colors ${countryCoverage === 'whole-country' ? dark ? 'border-yellow-500 bg-yellow-500/10' : 'border-yellow-500 bg-yellow-50' : dark ? 'border-slate-600 bg-slate-950/60 hover:border-slate-500' : 'border-slate-300 bg-white hover:border-slate-400'}`}><span className="block text-sm font-semibold">Whole country</span><span className={`mt-1 block text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Access every configured hierarchy level and location in the selected country.</span></button>
+                  <button type="button" role="radio" aria-checked={countryCoverage === 'specific-hierarchy'} onClick={() => changeCountryCoverage('specific-hierarchy')} className={`rounded-xl border p-3 text-left transition-colors ${countryCoverage === 'specific-hierarchy' ? dark ? 'border-yellow-500 bg-yellow-500/10' : 'border-yellow-500 bg-yellow-50' : dark ? 'border-slate-600 bg-slate-950/60 hover:border-slate-500' : 'border-slate-300 bg-white hover:border-slate-400'}`}><span className="block text-sm font-semibold">Specific hierarchy locations</span><span className={`mt-1 block text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Choose one or more regions, districts, counties, or lower-level locations and include their descendants.</span></button>
+                </div></fieldset>
+                {countryCoverage === 'specific-hierarchy' && <section className={`rounded-xl border p-4 ${dark ? 'border-slate-600 bg-slate-950/40' : 'border-slate-200 bg-slate-50'}`}><div><h4 className="text-sm font-semibold">Hierarchy access roots</h4><p className={`mt-1 text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Start with a top-level location or search by name at any configured level. Every child below a selected root is included automatically.</p></div><div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <label className="text-sm font-medium" htmlFor="service-client-location-search">Find a hierarchy location <span className={`font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>(optional search)</span><input id="service-client-location-search" disabled={!locationCountry} className={input} value={locationSearch} onChange={(event) => setLocationSearch(event.target.value)} placeholder="Search district, county, sub-county, parish…" /></label>
+                  <div className="text-sm font-medium"><div className="flex items-center justify-between gap-2"><label htmlFor="service-client-location">Location scopes</label><span className={`text-[10px] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{selectedLocations.length}/100 roots</span></div><div className={`mt-1.5 flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1 ${dark ? 'border-slate-600 bg-slate-950 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}>{selectedLocations.map((location) => <span key={location.referenceCode} className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-bold ${dark ? 'border-slate-600 bg-slate-800 text-slate-100' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>{location.name}<span className={`font-normal ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{location.levelName}</span><button type="button" onClick={() => setSelectedLocations((items) => items.filter((item) => item.referenceCode !== location.referenceCode))} aria-label={`Remove ${location.name}`} className="rounded p-0.5 hover:bg-red-500/15 hover:text-red-500"><X size={12} /></button></span>)}<select id="service-client-location" disabled={!locationCountry || locationsLoading || selectedLocations.length >= 100} style={{ colorScheme: dark ? 'dark' : 'light' }} className={`h-7 min-w-56 flex-1 border-0 px-1 text-sm font-normal outline-none ${dark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`} value="" onChange={(event) => { const location = locationResults.find((item) => item.referenceCode === event.target.value); if (location) { setSelectedLocations((items) => items.length >= 100 || items.some((item) => item.referenceCode === location.referenceCode) ? items : [...items, location]); setLocationSearch(''); } }}><option value="">{selectedLocations.length >= 100 ? 'Maximum of 100 hierarchy roots reached' : locationsLoading ? 'Loading hierarchy…' : locationSearch.trim().length >= 2 ? 'Select a matching hierarchy location' : 'Select a top-level location'}</option>{locationResults.map((location) => <option className={dark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'} key={location.referenceCode} value={location.referenceCode}>{location.name} — {location.levelName}</option>)}</select></div></div>
+                </div></section>}
               </div>}
-              <p className={`mt-2 text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Access is limited to the selected boundary. Location scopes include the selected locations and every descendant below them.</p>
+              <p className={`mt-3 text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{scopeType === 'country' && countryCoverage === 'specific-hierarchy' ? 'Access is restricted to the selected hierarchy roots and every descendant beneath them.' : 'Access is limited to the selected geographic boundary.'}</p>
             </div>
             <label className="text-sm font-medium">Requests per minute<input type="number" min="1" max="10000" className={input} value={form.rpm} onChange={(event) => setForm({ ...form, rpm: Number(event.target.value) })} /></label>
             <label className="text-sm font-medium">Daily quota<input type="number" min="1" max="10000000" className={input} value={form.quota} onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })} /></label>
@@ -278,7 +306,7 @@ function clientBoundaryLabel(client: MachineApiClient): string {
   if (client.assignedEconomicZones?.length) return `Economic zones: ${client.assignedEconomicZones.join(', ')}`;
   if (client.assignedRegionalBlocks?.length) return `Regional blocks: ${client.assignedRegionalBlocks.join(', ')}`;
   if (client.assignedCountryCodes?.length) return `Countries: ${client.assignedCountryCodes.join(', ')}`;
-  if (client.assignedLocationReferenceCodes?.length) return `${client.assignedLocationReferenceCodes.length} specific location scope${client.assignedLocationReferenceCodes.length === 1 ? '' : 's'}`;
+  if (client.assignedLocationReferenceCodes?.length) return `Hierarchy roots: ${client.assignedLocationReferenceCodes.length}`;
   return 'No geographic boundary';
 }
 
