@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Copy, KeyRound, Loader2, Plus, ShieldX, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Copy, KeyRound, Loader2, Plus, ShieldX, X } from 'lucide-react';
 import type { Theme } from '../../types';
 import {
   createMachineApiClient,
@@ -23,6 +23,8 @@ const availableScopes = [
   'webhooks:manage',
 ];
 
+const clientPageSizes = [5, 10, 20];
+
 type GeographicScopeType = 'economic-zone' | 'regional-block' | 'country' | 'location';
 
 const ApiClientManagement = ({ theme }: { theme: Theme }) => {
@@ -40,6 +42,8 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [locationResults, setLocationResults] = useState<ApiScopeLocationOption[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<ApiScopeLocationOption[]>([]);
   const [locationsLoading, setLocationsLoading] = useState(false);
+  const [clientPage, setClientPage] = useState(1);
+  const [clientsPerPage, setClientsPerPage] = useState(10);
   const [form, setForm] = useState({
     name: '', description: '', economicZones: [] as string[], regionalBlocks: [] as string[], countries: ['UG'], scopes: ['locations:read'],
     rpm: 60, quota: 10000, expiresAt: '',
@@ -63,6 +67,15 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   };
 
   useEffect(() => { void load(); }, []);
+
+  const clientPageCount = Math.max(1, Math.ceil(clients.length / clientsPerPage));
+  const visibleClientPage = Math.min(clientPage, clientPageCount);
+  const clientStartIndex = (visibleClientPage - 1) * clientsPerPage;
+  const visibleClients = clients.slice(clientStartIndex, clientStartIndex + clientsPerPage);
+
+  useEffect(() => {
+    if (clientPage > clientPageCount) setClientPage(clientPageCount);
+  }, [clientPage, clientPageCount]);
 
   useEffect(() => {
     if (!isCreateOpen) return undefined;
@@ -114,6 +127,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
       setForm((current) => ({ ...current, name: '', description: '' }));
       setIsCreateOpen(false);
       await load();
+      setClientPage(1);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to create API client.');
     } finally { setSaving(false); }
@@ -198,14 +212,41 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
           </button>
         </div>
         {loading ? <Loader2 className="mt-5 animate-spin" /> : (
-          <div className="mt-4 space-y-3">
-            {clients.map((client) => (
-              <div key={client.uid} className={`flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
-                <div><div className="flex items-center gap-2"><span className="font-semibold">{client.name}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${client.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{client.status}</span></div><p className="mt-1 font-mono text-xs text-slate-500">al_live_{client.key_prefix}_••••••••</p><p className="mt-1 text-xs font-semibold text-yellow-500">{clientBoundaryLabel(client)}</p><p className="mt-1 text-xs text-slate-500">{client.scopes.join(' · ')} · {client.requests_per_minute}/min · {client.daily_quota}/day</p></div>
-                {client.status === 'active' && <button type="button" onClick={() => void revoke(client.uid)} className="flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-xs font-bold text-red-500"><ShieldX size={15} /> Revoke</button>}
-              </div>
-            ))}
-            {clients.length === 0 && <p className="text-sm text-slate-500">No machine clients created.</p>}
+          <div className="mt-4">
+            <div className={`overflow-x-auto rounded-xl border ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+              <table className="w-full min-w-[1120px] table-auto border-collapse text-left text-sm">
+                <caption className="sr-only">Service clients and their API access configuration</caption>
+                <thead className={dark ? 'bg-slate-950 text-slate-300' : 'bg-slate-50 text-slate-600'}>
+                  <tr>
+                    <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">Client</th>
+                    <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">Status</th>
+                    <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">Credential</th>
+                    <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">Geographic boundary</th>
+                    <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">Permissions</th>
+                    <th scope="col" className="px-4 py-3 text-xs font-semibold uppercase tracking-wide">Usage limits</th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide">Action</th>
+                  </tr>
+                </thead>
+                <tbody className={dark ? 'divide-y divide-slate-700 bg-slate-900' : 'divide-y divide-slate-200 bg-white'}>
+                  {visibleClients.map((client) => (
+                    <tr key={client.uid} className={dark ? 'transition-colors hover:bg-slate-800/70' : 'transition-colors hover:bg-slate-50'}>
+                      <td className="max-w-56 px-4 py-3.5 align-top"><p className="font-semibold">{client.name}</p>{client.description && <p className={`mt-1 line-clamp-2 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{client.description}</p>}</td>
+                      <td className="px-4 py-3.5 align-top"><span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${client.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>{client.status}</span></td>
+                      <td className="px-4 py-3.5 align-top"><code className={`whitespace-nowrap rounded-md px-2 py-1 font-mono text-xs ${dark ? 'bg-slate-950 text-slate-300' : 'bg-slate-100 text-slate-700'}`}>al_live_{client.key_prefix}_••••••••</code></td>
+                      <td className="max-w-56 px-4 py-3.5 align-top"><span className="text-xs font-semibold text-yellow-500">{clientBoundaryLabel(client)}</span></td>
+                      <td className="max-w-72 px-4 py-3.5 align-top"><div className="flex flex-wrap gap-1.5">{client.scopes.map((scope) => <span key={scope} className={`rounded-md border px-2 py-1 text-[10px] font-medium ${dark ? 'border-slate-600 bg-slate-800 text-slate-200' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{scope}</span>)}</div></td>
+                      <td className={`whitespace-nowrap px-4 py-3.5 align-top text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}><p><strong className={dark ? 'text-slate-100' : 'text-slate-900'}>{client.requests_per_minute.toLocaleString()}</strong> requests/min</p><p className="mt-1"><strong className={dark ? 'text-slate-100' : 'text-slate-900'}>{client.daily_quota.toLocaleString()}</strong> requests/day</p></td>
+                      <td className="px-4 py-3.5 text-right align-top">{client.status === 'active' ? <button type="button" onClick={() => void revoke(client.uid)} className="ml-auto inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-3 py-2 text-xs font-bold text-red-500 transition-colors hover:bg-red-500/10"><ShieldX size={15} />Revoke</button> : <span className="text-xs text-slate-500">No actions</span>}</td>
+                    </tr>
+                  ))}
+                  {clients.length === 0 && <tr><td colSpan={7} className="px-4 py-10 text-center text-sm text-slate-500">No service clients have been created yet.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            {clients.length > 0 && <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 text-xs text-slate-500"><span>Rows per page</span><select aria-label="Service clients per page" style={{ colorScheme: dark ? 'dark' : 'light' }} value={clientsPerPage} onChange={(event) => { setClientsPerPage(Number(event.target.value)); setClientPage(1); }} className={`h-8 rounded-lg border px-2 text-xs outline-none ${dark ? 'border-slate-700 bg-slate-950 text-slate-200' : 'border-slate-300 bg-white text-slate-800'}`}>{clientPageSizes.map((size) => <option key={size} value={size}>{size}</option>)}</select><span>{clientStartIndex + 1}–{Math.min(clientStartIndex + clientsPerPage, clients.length)} of {clients.length}</span></div>
+              <nav className="flex items-center gap-2" aria-label="Service client pages"><button type="button" disabled={visibleClientPage === 1} onClick={() => setClientPage((page) => Math.max(1, page - 1))} className={`inline-flex h-9 items-center gap-1 rounded-lg border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${dark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-100'}`}><ChevronLeft size={15} />Previous</button><span className="min-w-20 text-center text-xs font-medium">Page {visibleClientPage} of {clientPageCount}</span><button type="button" disabled={visibleClientPage === clientPageCount} onClick={() => setClientPage((page) => Math.min(clientPageCount, page + 1))} className={`inline-flex h-9 items-center gap-1 rounded-lg border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${dark ? 'border-slate-700 hover:bg-slate-800' : 'border-slate-300 hover:bg-slate-100'}`}>Next<ChevronRight size={15} /></button></nav>
+            </div>}
           </div>
         )}
       </section>
