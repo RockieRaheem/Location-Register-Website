@@ -12,7 +12,7 @@ Human sessions use verified Firebase ID tokens. External systems use owner-issue
 - `audit:read`
 - `webhooks:manage`
 
-The owner creates and revokes service clients from **API Access → Service Clients**.
+The owner creates and revokes service clients from **System settings > API Access > Service clients**.
 
 ## Traffic controls
 

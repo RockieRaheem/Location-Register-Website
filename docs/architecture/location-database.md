@@ -2,9 +2,9 @@
 
 ## Implemented outcome
 
-The project now persists countries, country-specific hierarchy definitions, and administrative locations in SQLite instead of treating a complete `Country` JSON object as the database. The database is generated at `data/location-register.sqlite`; it is ignored by Git because database files and their WAL sidecars are runtime state. The schema, migrations, seeders, and validators are committed and reproducible.
+The project persists countries, country-specific hierarchy definitions, and administrative locations in SQLite instead of treating a complete `Country` JSON object as the database. The database is generated at `data/database/location-register.sqlite`; it is ignored by Git because database files and their WAL sidecars are runtime state. The schema, migrations, seeders, and validators are committed and reproducible.
 
-The implementation requires Node.js 22.13 or newer and uses the built-in `node:sqlite` driver. No native third-party database package is required.
+The implementation supports Node.js 22 LTS or 24 LTS and uses the built-in `node:sqlite` driver. No native third-party database package is required.
 
 ## Why the model is not Uganda-specific
 
@@ -163,7 +163,7 @@ The original `/api/countries` endpoints remain available. They now persist throu
 npm run db:seed -- --reset
 npm run db:validate
 npm run dev
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-location-api.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke\location-api.ps1
 npm run lint
 npm run build
 ```
@@ -175,7 +175,7 @@ When the server starts against an empty database, it migrates `countries-store.j
 ## Production operations
 
 - Back up the database using SQLite's online backup mechanism or a filesystem snapshot coordinated with WAL checkpointing.
-- Keep `data/location-register.sqlite`, `-wal`, and `-shm` files on persistent storage.
+- Keep `data/database/location-register.sqlite`, `-wal`, and `-shm` files on persistent storage.
 - Run migrations before accepting traffic during deployment.
 - Use one writer process or add an application-level write queue if deployment grows beyond a single Node process.
 - For multi-region/high-write deployment, retain the logical schema but migrate to PostgreSQL; UUIDs, adjacency relationships, closure paths, and API contracts can remain unchanged.

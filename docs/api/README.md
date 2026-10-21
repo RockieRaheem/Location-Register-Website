@@ -1,6 +1,6 @@
 # Location API v1
 
-The signed-in dashboard includes a dedicated **API Access** developer portal with live scope discovery, token generation, endpoint URLs, cURL/JavaScript/Python examples, pagination guidance, and error documentation. The same contract is available to tools at `GET /api/v1/openapi.json` as OpenAPI 3.1 JSON.
+The signed-in dashboard includes a developer portal under **System settings > API Access** with live scope discovery, token generation, endpoint URLs, cURL/JavaScript/Python examples, pagination guidance, and error documentation. The same contract is available to tools at `GET /api/v1/openapi.json` as OpenAPI 3.1 JSON.
 
 Production controls—including machine clients, hashed credentials, scopes, quotas, request tracing, idempotency, exports, webhooks, structured errors and version policy—are documented in [`production-api.md`](./production-api.md).
 
@@ -30,7 +30,7 @@ An account must be active and its Firebase email must be verified. Country assig
 
 The owner can additionally assign up to ten immutable `assignedLocationReferenceCodes`. When present, these codes restrict reads to those exact locations and their descendant subtrees. This supports access such as “Kampala District only” or one particular sub-county without creating hardcoded endpoints or duplicating data.
 
-Set `FIREBASE_CHECK_REVOKED_TOKENS=true` on a trusted server with Application Default Credentials when immediate token revocation checks are required. The default still validates token issuer, audience, signature, expiry, email verification, status claim, and role without adding a paid Firebase dependency.
+Production checks Firebase token revocation by default. `FIREBASE_CHECK_REVOKED_TOKENS` is an explicit override for controlled environments; token issuer, audience, signature, expiry, verified email, account status, and role are always validated.
 
 Examples:
 

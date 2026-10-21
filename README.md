@@ -1,45 +1,62 @@
 # Any Location
 
-Any Location is a React, Express, SQLite, and Firebase application for managing country-specific administrative hierarchies. Uganda is represented from country through region, district/city, county/municipality, sub-county/division, parish/ward, and village/cell without hard-coding that hierarchy for other countries.
+Any Location is a location-registry and developer API for configurable administrative hierarchies. It currently provides Uganda from country to village/cell, while the data model allows every country to define its own level names and depth.
 
-## Workspace layout
+## What the system provides
 
-```text
-src/                    Application source
-  components/           UI grouped by product domain
-  config/               Runtime client configuration
-  data/                 Typed application and map data
-  server/               Express API and SQLite repository
-  services/             Firebase and application services
-data/                   Source datasets, generated reports, maps, and local database
-database/migrations/    Versioned SQLite migrations
-firebase/               Firestore indexes/rules, Storage rules, and rule tests
-docs/api/               Versioned API contract and role-access documentation
-scripts/                Database, import, Firebase, geospatial, and smoke utilities
-docs/                   Architecture, audits, security, data, and integration notes
-config/                 Repository-level metadata
-references/             Preserved third-party source snapshots; not runtime code
+- Interactive African and country maps with hierarchy drill-down.
+- Permanent reference codes that map locations to stable API identifiers.
+- Firebase sign-in and owner-managed user roles.
+- Human and machine API identities with geographic scopes, permissions, quotas, expiry, and revocation.
+- Optional leader records and an accountability history for every location.
+- JSON, CSV, and GeoJSON access where verified geometry exists.
+- Audited SQLite persistence for the validated local registry and staged Firestore synchronization.
+
+## Start locally
+
+Prerequisites: Node.js 22 LTS or 24 LTS and npm. Java 21 or newer is needed only for Firebase emulator tests.
+
+```powershell
+git clone <repository-url>
+cd Location-Register-Website
+npm.cmd install
+Copy-Item .env.example .env.local
+# Add the Firebase Web SDK values to .env.local.
+npm.cmd run db:validate
+npm.cmd run dev
 ```
 
-## Local setup
+Open <http://localhost:3000>. If port 3000 is already occupied, stop the existing process before starting another server.
 
-1. Use Node.js 22.13 or newer and run `npm install`.
-2. Copy `.env.example` to `.env.local` and supply the Firebase web configuration from project `any-location-36e76`.
-3. Run `npm run db:validate` to verify the local hierarchy database.
-4. Run `npm run dev` and open <http://localhost:3000>.
+## Essential commands
 
-Environment files containing credentials are ignored. `.env.example` is the safe configuration template and must not contain secrets.
+| Command | Purpose |
+| --- | --- |
+| `npm.cmd run dev` | Run Express and Vite with file watching |
+| `npm.cmd run build` | Create the production client bundle |
+| `npm.cmd test -- --runInBand` | Run local unit and security tests |
+| `npm.cmd run test:rules` | Run Firestore rules tests in the emulator |
+| `npm.cmd run lint` | Type-check the complete TypeScript project |
+| `npm.cmd run lint:rules` | Lint Firestore and Storage rules |
+| `npm.cmd run db:validate` | Verify database integrity and hierarchy totals |
+| `npm.cmd run api:validate` | Verify API credentials and scope enforcement |
 
-## Quality commands
+PowerShell may block `npm.ps1`; use `npm.cmd` as shown. Never commit `.env.local` or a Firebase service-account JSON file.
 
-- `npm run lint` — TypeScript validation.
-- `npm run build` — production client build.
-- `npm run validate:ec-2022` — source dataset validation.
-- `npm run db:validate` — hierarchy and identifier validation.
-- `npm run test:rules` — Firebase Security Rules tests using local emulators.
+## Documentation
 
-## Location API
+Start with the [documentation handbook](docs/README.md). It links to setup, architecture, administration, API integration, data provenance, security, testing, deployment, and troubleshooting guidance.
 
-Authenticated integrations use `/api/v1`. Every request supplies a Firebase ID token in `Authorization: Bearer <token>`, and every location response includes an immutable `referenceCode`. See [API access and roles](docs/api/README.md).
+## Repository at a glance
 
-The default SQLite file is `data/database/location-register.sqlite`. Firebase configuration and operating guidance are documented under [`docs/integrations`](docs/integrations) and [`docs/security`](docs/security).
+```text
+src/                  React application, services, and Express API
+database/migrations/  Versioned SQLite schema
+data/                 Reviewed sources, geometry, reports, and ignored runtime DB
+firebase/             Firestore indexes/rules, Storage rules, and rule tests
+scripts/              Import, validation, Firebase, geospatial, and smoke tools
+docs/                 Maintained system handbook and historical audits
+references/           Non-runtime source snapshots and local-import convention
+```
+
+The local registry is stored at `data/database/location-register.sqlite`. The file is generated runtime state and is intentionally excluded from Git.

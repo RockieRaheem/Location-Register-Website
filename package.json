@@ -27,6 +27,7 @@
     "build:uganda-ec-2025-candidate": "tsx scripts/data/build-uganda-ec-2025-candidate.ts",
     "reconcile:uganda-ec-2025": "tsx scripts/data/reconcile-uganda-ec-2025.ts",
     "api:validate": "tsx scripts/api/validate-api-platform.ts",
+    "docs:validate": "node scripts/maintenance/validate-documentation.mjs",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --testPathIgnorePatterns=firebase/tests",
     "test:rules": "firebase emulators:exec --only firestore \"node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand firebase/tests/firestore.rules.test.ts\"",
     "preview": "vite preview",

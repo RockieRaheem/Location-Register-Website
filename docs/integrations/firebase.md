@@ -54,7 +54,7 @@ npm.cmd run firebase:import:locations
 ```
 
 The last command is a dry run. It prints exact counts and performs no Firebase writes.
-The emulator-based rules test requires Java 21 or newer on `PATH`; the rules parser lint does not require Java.
+The emulator-based rules test requires Java 21 or newer on `PATH`; the rules parser lint does not require Java. Use Node.js 22 LTS or 24 LTS for the supported Firebase toolchain.
 
 ## Deploy rules and indexes
 
