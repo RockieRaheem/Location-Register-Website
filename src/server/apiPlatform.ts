@@ -144,8 +144,11 @@ export class ApiPlatform {
     const invalidBlock = regionalBlocks.find((code) => !knownBlocks.has(code)); if (invalidBlock) throw new Error(`Regional block not found: ${invalidBlock}`);
     const invalidCountry = countries.find((code) => !knownCountries.has(code)); if (invalidCountry) throw new Error(`Country not found: ${invalidCountry}`);
     if (references.length > 100) throw new Error('Assign at most 100 location scope roots to one client');
-    const invalidReference = references.find((code) => !this.locations.getLocationByReferenceCode(code)); if (invalidReference) throw new Error(`Location reference not found: ${invalidReference}`);
-    const countryRootReference = references.find((code) => this.locations.getLocationByReferenceCode(code)?.levelOrder === 0); if (countryRootReference) throw new Error('Use a country scope instead of assigning a country root as a specific location');
+    const resolvedReferences = references.map((code) => ({ code, location: this.locations.getLocationByReferenceCode(code) }));
+    const invalidReference = resolvedReferences.find(({ location }) => !location); if (invalidReference) throw new Error(`Location reference not found: ${invalidReference.code}`);
+    const countryRootReference = resolvedReferences.find(({ location }) => location?.levelOrder === 0); if (countryRootReference) throw new Error('Use a country scope instead of assigning a country root as a specific location');
+    const referenceCountries = new Set(resolvedReferences.flatMap(({ location }) => location ? [location.countryCode] : []));
+    if (referenceCountries.size > 1) throw new Error('Specific hierarchy scopes must belong to one country');
     const expiryTime = input.expiresAt ? Date.parse(input.expiresAt) : null;
     if (input.expiresAt && (Number.isNaN(expiryTime) || Number(expiryTime) <= Date.now())) throw new Error('expiresAt must be a future ISO date');
     const requestsPerMinute = boundedInteger(input.requestsPerMinute, 60, 1, 10_000, 'requestsPerMinute');

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronLeft, ChevronRight, Copy, KeyRound, Loader2, Plus, Search, ShieldX, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Globe2, KeyRound, Layers3, Loader2, MapPinned, Plus, Search, ShieldX, X } from 'lucide-react';
 import type { Theme } from '../../types';
 import {
   createMachineApiClient,
@@ -26,7 +26,7 @@ const availableScopes = [
 const clientPageSizes = [5, 10, 20];
 
 type GeographicScopeType = 'economic-zone' | 'regional-block' | 'country';
-type CountryCoverage = 'whole-country' | 'specific-hierarchy';
+type CountryCoverage = 'whole-country' | 'specific-hierarchy' | null;
 
 const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [clients, setClients] = useState<MachineApiClient[]>([]);
@@ -38,8 +38,8 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
   const [scopeType, setScopeType] = useState<GeographicScopeType>('country');
-  const [countryCoverage, setCountryCoverage] = useState<CountryCoverage>('whole-country');
-  const [locationCountry, setLocationCountry] = useState('UG');
+  const [countryCoverage, setCountryCoverage] = useState<CountryCoverage>(null);
+  const [locationCountry, setLocationCountry] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
   const [locationResults, setLocationResults] = useState<ApiScopeLocationOption[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<ApiScopeLocationOption[]>([]);
@@ -47,7 +47,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [clientPage, setClientPage] = useState(1);
   const [clientsPerPage, setClientsPerPage] = useState(10);
   const [form, setForm] = useState({
-    name: '', description: '', economicZones: [] as string[], regionalBlocks: [] as string[], countries: ['UG'], scopes: ['locations:read'],
+    name: '', description: '', economicZones: [] as string[], regionalBlocks: [] as string[], countries: [] as string[], scopes: ['locations:read'],
     rpm: 60, quota: 10000, expiresAt: '',
   });
 
@@ -138,7 +138,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const revoke = async (uid: string) => { await revokeMachineApiClient(uid); await load(); };
   const changeScopeType = (nextType: GeographicScopeType) => {
     setScopeType(nextType);
-    setCountryCoverage('whole-country');
+    setCountryCoverage(null);
     setForm((current) => ({ ...current, economicZones: [], regionalBlocks: [], countries: [] }));
     setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
   };
@@ -158,6 +158,25 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
       setLocationCountry(countryCode);
       setForm((current) => ({ ...current, countries: countryCode ? [countryCode] : [] }));
     }
+  };
+  const selectStartingCountry = (countryCode: string) => {
+    setForm((current) => ({ ...current, countries: countryCode ? [countryCode] : [] }));
+    setLocationCountry(countryCode);
+    setCountryCoverage(null);
+    setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
+  };
+  const returnToCountryDecision = () => {
+    const countryCode = form.countries[0] || locationCountry;
+    setCountryCoverage(null);
+    setForm((current) => ({ ...current, countries: countryCode ? [countryCode] : [] }));
+    setLocationCountry(countryCode);
+    setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
+  };
+  const resetCountrySelection = () => {
+    setCountryCoverage(null);
+    setForm((current) => ({ ...current, countries: [] }));
+    setLocationCountry('');
+    setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
   };
   const boundarySelectionCount = scopeType === 'economic-zone' ? form.economicZones.length
     : scopeType === 'regional-block' ? form.regionalBlocks.length
@@ -192,23 +211,32 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
             <label className="text-sm font-medium">Client name<input required autoFocus className={input} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label>
             <label className="text-sm font-medium">Geographic boundary
               <select className={input} style={{ colorScheme: dark ? 'dark' : 'light' }} value={scopeType} onChange={(event) => changeScopeType(event.target.value as GeographicScopeType)}>
-                <option value="economic-zone">Economic zone</option><option value="regional-block">Regional block</option><option value="country">Country and its hierarchy</option>
+                <option value="economic-zone">Economic zone</option><option value="regional-block">Regional block</option><option value="country">Country</option>
               </select>
             </label>
             <div className="md:col-span-2">
               {scopeType === 'economic-zone' && <ScopeMultiSelect label="Economic zones" placeholder="Select an economic zone" selected={form.economicZones} options={catalog.economicZones.map((zone) => ({ code: zone.code, name: zone.name, detail: `${zone.countryCodes.length} countries` }))} dark={dark} onChange={(values) => setForm({ ...form, economicZones: values })} />}
               {scopeType === 'regional-block' && <ScopeMultiSelect label="Regional blocks" placeholder="Select a regional block" selected={form.regionalBlocks} options={catalog.regionalBlocks.map((block) => ({ code: block.code, name: block.name, detail: `${block.countryCodes.length} countries` }))} dark={dark} onChange={(values) => setForm({ ...form, regionalBlocks: values })} />}
-              {scopeType === 'country' && <div className="space-y-4">
-                {countryCoverage === 'whole-country'
-                  ? <ScopeMultiSelect label="Countries" placeholder="Select a country" selected={form.countries} options={catalog.countries.map((country) => ({ code: country.countryCode, name: country.name, detail: country.countryCode }))} dark={dark} onChange={changeCountries} />
-                  : <label className="block text-sm font-medium">Country<select className={input} style={{ colorScheme: dark ? 'dark' : 'light' }} value={form.countries[0] || ''} onChange={(event) => changeCountries(event.target.value ? [event.target.value] : [])}><option value="">Select a country</option>{catalog.countries.map((country) => <option key={country.countryCode} value={country.countryCode}>{country.name} ({country.countryCode})</option>)}</select></label>}
-                <fieldset><legend className="text-sm font-medium">Coverage within the country</legend><div className="mt-2 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Country coverage">
-                  <button type="button" role="radio" aria-checked={countryCoverage === 'whole-country'} onClick={() => changeCountryCoverage('whole-country')} className={`rounded-xl border p-3 text-left transition-colors ${countryCoverage === 'whole-country' ? dark ? 'border-yellow-500 bg-yellow-500/10' : 'border-yellow-500 bg-yellow-50' : dark ? 'border-slate-600 bg-slate-950/60 hover:border-slate-500' : 'border-slate-300 bg-white hover:border-slate-400'}`}><span className="block text-sm font-semibold">Whole country</span><span className={`mt-1 block text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Access every configured hierarchy level and location in the selected country.</span></button>
-                  <button type="button" role="radio" aria-checked={countryCoverage === 'specific-hierarchy'} onClick={() => changeCountryCoverage('specific-hierarchy')} className={`rounded-xl border p-3 text-left transition-colors ${countryCoverage === 'specific-hierarchy' ? dark ? 'border-yellow-500 bg-yellow-500/10' : 'border-yellow-500 bg-yellow-50' : dark ? 'border-slate-600 bg-slate-950/60 hover:border-slate-500' : 'border-slate-300 bg-white hover:border-slate-400'}`}><span className="block text-sm font-semibold">Specific hierarchy locations</span><span className={`mt-1 block text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Choose one or more regions, districts, counties, or lower-level locations and include their descendants.</span></button>
-                </div></fieldset>
-                {countryCoverage === 'specific-hierarchy' && <section className={`rounded-xl border p-4 ${dark ? 'border-slate-600 bg-slate-950/40' : 'border-slate-200 bg-slate-50'}`}><div><h4 className="text-sm font-semibold">Hierarchy access roots</h4><p className={`mt-1 text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Search or open the dropdown, then select any configured hierarchy location. Every child below a selected root is included automatically.</p></div><div className="mt-3"><HierarchyLocationPicker dark={dark} disabled={!locationCountry} loading={locationsLoading} query={locationSearch} onQueryChange={setLocationSearch} results={locationResults} selected={selectedLocations} onSelect={(location) => { setSelectedLocations((items) => items.length >= 100 || items.some((item) => item.referenceCode === location.referenceCode) ? items : [...items, location]); setLocationSearch(''); }} onRemove={(referenceCode) => setSelectedLocations((items) => items.filter((item) => item.referenceCode !== referenceCode))} /></div></section>}
-              </div>}
-              <p className={`mt-3 text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{scopeType === 'country' && countryCoverage === 'specific-hierarchy' ? 'Access is restricted to the selected hierarchy roots and every descendant beneath them.' : 'Access is limited to the selected geographic boundary.'}</p>
+              {scopeType === 'country' && <CountryScopeFlow
+                dark={dark}
+                countries={catalog.countries}
+                selectedCountryCodes={form.countries}
+                coverage={countryCoverage}
+                locationCountry={locationCountry}
+                locationSearch={locationSearch}
+                locationResults={locationResults}
+                selectedLocations={selectedLocations}
+                locationsLoading={locationsLoading}
+                onStartingCountryChange={selectStartingCountry}
+                onCountriesChange={changeCountries}
+                onCoverageChange={changeCountryCoverage}
+                onReturnToDecision={returnToCountryDecision}
+                onResetCountry={resetCountrySelection}
+                onLocationSearchChange={setLocationSearch}
+                onLocationSelect={(location) => { setSelectedLocations((items) => items.length >= 100 || items.some((item) => item.referenceCode === location.referenceCode) ? items : [...items, location]); setLocationSearch(''); }}
+                onLocationRemove={(referenceCode) => setSelectedLocations((items) => items.filter((item) => item.referenceCode !== referenceCode))}
+              />}
+              {scopeType !== 'country' && <p className={`mt-3 text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Access is limited to the selected geographic boundary.</p>}
             </div>
             <label className="text-sm font-medium">Requests per minute<input type="number" min="1" max="10000" className={input} value={form.rpm} onChange={(event) => setForm({ ...form, rpm: Number(event.target.value) })} /></label>
             <label className="text-sm font-medium">Daily quota<input type="number" min="1" max="10000000" className={input} value={form.quota} onChange={(event) => setForm({ ...form, quota: Number(event.target.value) })} /></label>
@@ -278,6 +306,101 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
     </div>
   );
 };
+
+type CountryOption = ApiGeographicScopeCatalog['countries'][number];
+
+const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, locationCountry, locationSearch, locationResults, selectedLocations, locationsLoading, onStartingCountryChange, onCountriesChange, onCoverageChange, onReturnToDecision, onResetCountry, onLocationSearchChange, onLocationSelect, onLocationRemove }: {
+  dark: boolean;
+  countries: CountryOption[];
+  selectedCountryCodes: string[];
+  coverage: CountryCoverage;
+  locationCountry: string;
+  locationSearch: string;
+  locationResults: ApiScopeLocationOption[];
+  selectedLocations: ApiScopeLocationOption[];
+  locationsLoading: boolean;
+  onStartingCountryChange: (countryCode: string) => void;
+  onCountriesChange: (countryCodes: string[]) => void;
+  onCoverageChange: (coverage: Exclude<CountryCoverage, null>) => void;
+  onReturnToDecision: () => void;
+  onResetCountry: () => void;
+  onLocationSearchChange: (value: string) => void;
+  onLocationSelect: (location: ApiScopeLocationOption) => void;
+  onLocationRemove: (referenceCode: string) => void;
+}) => {
+  const startingCountry = countries.find((country) => country.countryCode === selectedCountryCodes[0]);
+  const surface = dark ? 'border-slate-600 bg-slate-950/55' : 'border-slate-200 bg-slate-50';
+  const muted = dark ? 'text-slate-300' : 'text-slate-600';
+
+  if (!startingCountry) {
+    return <section className={`overflow-visible rounded-2xl border p-5 sm:p-6 ${surface}`}>
+      <div className="flex items-start gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-yellow-500/15 text-yellow-500"><Globe2 size={20} /></span>
+        <div><h4 className="font-semibold">Choose a country</h4><p className={`mt-1 text-sm ${muted}`}>Start with one country. You will choose whole-country or hierarchy-level access next.</p></div>
+      </div>
+      <div className="mt-5 max-w-xl"><CountryPicker countries={countries} selected={[]} dark={dark} multiple={false} placeholder="Search or select a country" onChange={(values) => onStartingCountryChange(values[0] || '')} /></div>
+    </section>;
+  }
+
+  if (!coverage) {
+    return <section className={`overflow-hidden rounded-2xl border ${surface}`}>
+      <div className={`flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between ${dark ? 'border-slate-700' : 'border-slate-200'}`}>
+        <div className="flex items-center gap-3"><span className="text-2xl" aria-hidden="true">{countryFlag(startingCountry.countryCode)}</span><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-yellow-500">Selected country</p><h4 className="font-semibold">{startingCountry.name} <span className={`font-normal ${muted}`}>({startingCountry.countryCode})</span></h4></div></div>
+        <button type="button" onClick={onResetCountry} className={`self-start rounded-lg border px-3 py-2 text-xs font-semibold transition-colors sm:self-auto ${dark ? 'border-slate-600 hover:bg-slate-800' : 'border-slate-300 bg-white hover:bg-slate-100'}`}>Change country</button>
+      </div>
+      <fieldset className="p-5 sm:p-6"><legend className="sr-only">Choose country access</legend><div><h4 className="font-semibold">How much of {startingCountry.name} should this client access?</h4><p className={`mt-1 text-sm ${muted}`}>Choose one model. The next screen will show only the controls needed for that choice.</p></div>
+        <div className="mt-5 grid gap-3 md:grid-cols-2" role="radiogroup" aria-label="Country access model">
+          <AccessChoice icon={<Globe2 size={22} />} title="Whole country" description="Include every available location and hierarchy level. You can add more countries afterward." dark={dark} onClick={() => onCoverageChange('whole-country')} />
+          <AccessChoice icon={<Layers3 size={22} />} title="Specific hierarchies" description={`Choose precise regions, districts, or lower levels within ${startingCountry.name}. This keeps the client tied to one country.`} dark={dark} onClick={() => onCoverageChange('specific-hierarchy')} />
+        </div>
+      </fieldset>
+    </section>;
+  }
+
+  if (coverage === 'whole-country') {
+    return <section className={`overflow-visible rounded-2xl border ${dark ? 'border-emerald-500/35 bg-emerald-500/[0.06]' : 'border-emerald-200 bg-emerald-50/70'}`}>
+      <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+        <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500"><Globe2 size={20} /></span><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-500">Whole-country access</p><h4 className="mt-0.5 font-semibold">All locations in selected countries</h4><p className={`mt-1 max-w-2xl text-sm ${muted}`}>Every available hierarchy level is included automatically. Add any other countries this client needs.</p></div></div>
+        <button type="button" onClick={onReturnToDecision} className={`shrink-0 self-start rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${dark ? 'border-slate-600 hover:bg-slate-800' : 'border-slate-300 bg-white hover:bg-slate-100'}`}>Change access type</button>
+      </div>
+      <div className={`border-t px-5 py-5 sm:px-6 ${dark ? 'border-slate-700/80' : 'border-emerald-200'}`}><CountryPicker countries={countries} selected={selectedCountryCodes} dark={dark} multiple placeholder="Search and add countries" onChange={onCountriesChange} /></div>
+    </section>;
+  }
+
+  return <section className={`overflow-visible rounded-2xl border ${dark ? 'border-sky-500/35 bg-sky-500/[0.06]' : 'border-sky-200 bg-sky-50/70'}`}>
+    <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+      <div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-500"><MapPinned size={20} /></span><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-500">Hierarchy access</p><h4 className="mt-0.5 font-semibold">{countryFlag(locationCountry)} {startingCountry.name} only</h4><p className={`mt-1 max-w-2xl text-sm ${muted}`}>Select one or more hierarchy roots. Each selected root includes all descendants beneath it.</p></div></div>
+      <button type="button" onClick={onReturnToDecision} className={`shrink-0 self-start rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${dark ? 'border-slate-600 hover:bg-slate-800' : 'border-slate-300 bg-white hover:bg-slate-100'}`}>Change access type</button>
+    </div>
+    <div className={`border-t px-5 py-5 sm:px-6 ${dark ? 'border-slate-700/80' : 'border-sky-200'}`}><HierarchyLocationPicker dark={dark} disabled={!locationCountry} loading={locationsLoading} query={locationSearch} onQueryChange={onLocationSearchChange} results={locationResults} selected={selectedLocations} onSelect={onLocationSelect} onRemove={onLocationRemove} /></div>
+  </section>;
+};
+
+const AccessChoice = ({ icon, title, description, dark, onClick }: { icon: React.ReactNode; title: string; description: string; dark: boolean; onClick: () => void }) => (
+  <button type="button" role="radio" aria-checked="false" onClick={onClick} className={`group flex min-h-36 flex-col rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-yellow-500 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/40 ${dark ? 'border-slate-600 bg-slate-900 hover:shadow-black/20' : 'border-slate-200 bg-white hover:shadow-slate-900/10'}`}>
+    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-yellow-500/15 text-yellow-500">{icon}</span><span className="mt-4 flex w-full items-center justify-between gap-3"><span className="font-semibold">{title}</span><ArrowRight size={17} className="text-yellow-500 transition-transform group-hover:translate-x-1" /></span><span className={`mt-1.5 text-sm leading-5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{description}</span>
+  </button>
+);
+
+const CountryPicker = ({ countries, selected, dark, multiple, placeholder, onChange }: { countries: CountryOption[]; selected: string[]; dark: boolean; multiple: boolean; placeholder: string; onChange: (values: string[]) => void }) => {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const matches = countries.filter((country) => !selected.includes(country.countryCode) && `${country.name} ${country.countryCode}`.toLowerCase().includes(query.trim().toLowerCase()));
+  return <div className="relative text-sm" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) { setOpen(false); setQuery(''); } }}>
+    <label htmlFor={`country-picker-${multiple ? 'multiple' : 'single'}`} className="font-medium">{multiple ? 'Countries' : 'Country'}</label>
+    <div className={`mt-1.5 flex min-h-12 flex-wrap items-center gap-1.5 rounded-xl border px-2.5 py-2 transition-colors focus-within:border-yellow-500 focus-within:ring-2 focus-within:ring-yellow-500/20 ${dark ? 'border-slate-600 bg-slate-950 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}>
+      {selected.map((code) => { const country = countries.find((item) => item.countryCode === code); return <span key={code} className={`inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 text-xs font-semibold ${dark ? 'border-slate-600 bg-slate-800' : 'border-slate-200 bg-slate-100'}`}><span aria-hidden="true">{countryFlag(code)}</span>{country?.name || code}<span className={dark ? 'text-slate-400' : 'text-slate-500'}>{code}</span>{multiple && <button type="button" onClick={() => onChange(selected.filter((item) => item !== code))} aria-label={`Remove ${country?.name || code}`} className="rounded p-0.5 hover:bg-red-500/15 hover:text-red-500"><X size={12} /></button>}</span>; })}
+      <div className="flex min-w-52 flex-1 items-center gap-2"><Search size={15} className={dark ? 'text-slate-400' : 'text-slate-500'} /><input id={`country-picker-${multiple ? 'multiple' : 'single'}`} role="combobox" aria-expanded={open} aria-controls={`country-picker-options-${multiple ? 'multiple' : 'single'}`} value={query} onFocus={() => setOpen(true)} onChange={(event) => { setQuery(event.target.value); setOpen(true); }} placeholder={selected.length && !multiple ? '' : placeholder} className={`h-7 min-w-0 flex-1 border-0 bg-transparent outline-none ${dark ? 'placeholder:text-slate-500' : 'placeholder:text-slate-400'}`} /><ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''} ${dark ? 'text-slate-400' : 'text-slate-500'}`} /></div>
+    </div>
+    {open && <div id={`country-picker-options-${multiple ? 'multiple' : 'single'}`} role="listbox" className={`absolute inset-x-0 top-full z-40 mt-2 max-h-64 overflow-y-auto rounded-xl border p-1.5 shadow-2xl ${dark ? 'border-slate-600 bg-slate-900 shadow-black/40' : 'border-slate-200 bg-white shadow-slate-900/15'}`}>
+      {matches.length ? matches.map((country) => <button key={country.countryCode} type="button" role="option" aria-selected="false" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(multiple ? [...selected, country.countryCode] : [country.countryCode]); setQuery(''); setOpen(multiple); }} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${dark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}><span className="text-xl" aria-hidden="true">{countryFlag(country.countryCode)}</span><span className="min-w-0 flex-1 font-semibold">{country.name}</span><span className={`rounded-md px-2 py-1 text-[10px] font-bold ${dark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>{country.countryCode}</span></button>) : <p className={`px-3 py-3 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{selected.length === countries.length ? 'All available countries are selected.' : 'No matching countries.'}</p>}
+    </div>}
+  </div>;
+};
+
+function countryFlag(countryCode: string): string {
+  return /^[A-Z]{2}$/.test(countryCode) ? [...countryCode].map((character) => String.fromCodePoint(127397 + character.charCodeAt(0))).join('') : '🌍';
+}
 
 interface ScopeOption { code: string; name: string; detail: string; }
 

@@ -10,6 +10,11 @@ try {
     if (!country) throw new Error(`${code} test fixture is unavailable`);
     database.upsertCountry({ ...country, adminLevels: [] });
   }
+  const uganda = database.getCountryByCode('UG');
+  const kenya = database.getCountryByCode('KE');
+  if (!uganda?.rootLocationUid || !kenya?.rootLocationUid) throw new Error('Test country roots are unavailable');
+  const ugandaLocation = database.insertLocation({ countryCode: 'UG', parentUid: uganda.rootLocationUid, levelOrder: 1, name: 'Central test region', type: 'Region' }, 'automated-validation');
+  const kenyaLocation = database.insertLocation({ countryCode: 'KE', parentUid: kenya.rootLocationUid, levelOrder: 1, name: 'Central test county', type: 'County' }, 'automated-validation');
   const platform = new ApiPlatform(database);
   const created = platform.createClient({
     name: 'Validation client', scopes: ['locations:read'], assignedCountryCodes: ['UG'],
@@ -25,6 +30,7 @@ try {
   const blockClient = platform.createClient({ name: 'Block client', scopes: ['locations:read'], assignedRegionalBlocks: ['EAC'] }, 'automated-validation');
   assert.deepEqual(platform.verifyApiKey(blockClient.apiKey)?.assignedCountryCodes, ['KE', 'UG']);
   assert.throws(() => platform.createClient({ name: 'Ambiguous client', scopes: ['locations:read'], assignedCountryCodes: ['UG'], assignedRegionalBlocks: ['EAC'] }, 'automated-validation'), /exactly one geographic scope type/);
+  assert.throws(() => platform.createClient({ name: 'Cross-country hierarchy client', scopes: ['locations:read'], assignedLocationReferenceCodes: [ugandaLocation.referenceCode, kenyaLocation.referenceCode] }, 'automated-validation'), /must belong to one country/);
   assert.throws(() => platform.createClient({ name: 'Invalid quota', scopes: ['locations:read'], assignedCountryCodes: ['UG'], requestsPerMinute: -1 }, 'automated-validation'), /requestsPerMinute/);
   assert.throws(() => platform.createClient({ name: 'Invalid expiry', scopes: ['locations:read'], assignedCountryCodes: ['UG'], expiresAt: new Date(Date.now() - 1000).toISOString() }, 'automated-validation'), /future ISO date/);
   const credential = database.db.prepare('SELECT key_hash FROM api_credentials WHERE client_uid = ?').get(created.clientUid) as { key_hash: string };
@@ -32,7 +38,7 @@ try {
   assert.equal(credential.key_hash.length, 64);
   platform.revokeClient(created.clientUid);
   assert.equal(platform.verifyApiKey(created.apiKey), null);
-  console.log(JSON.stringify({ valid: true, hashedCredential: true, scopedMachinePrincipal: true, geographicBoundaryExpansion: true, ambiguousBoundaryRejected: true, inputBoundsEnforced: true, immediateRevocation: true }, null, 2));
+  console.log(JSON.stringify({ valid: true, hashedCredential: true, scopedMachinePrincipal: true, geographicBoundaryExpansion: true, ambiguousBoundaryRejected: true, crossCountryHierarchyRejected: true, inputBoundsEnforced: true, immediateRevocation: true }, null, 2));
 } finally {
   database.close();
 }

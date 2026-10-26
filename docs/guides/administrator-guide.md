@@ -31,10 +31,13 @@ The command-line role script is an emergency recovery path, not the normal workf
 2. Select **Create service client**.
 3. Give the integration a recognizable name and purpose.
 4. Select exactly one geographic boundary type.
-5. Choose the economic zone, regional block, countries, or hierarchy roots from the searchable selectors.
-6. Select only required permissions.
-7. Set conservative requests-per-minute, daily quota, and expiry values.
-8. Create the key and copy it immediately. The plaintext is never shown again.
+5. For **Country**, choose the first country and then choose one access model:
+   - **Whole country** includes every configured level and location, and permits additional countries.
+   - **Specific hierarchies** selects one or more hierarchy roots and their descendants within that one country only.
+6. For an economic zone or regional block, choose the required entries from the selector.
+7. Select only required permissions.
+8. Set conservative requests-per-minute, daily quota, and expiry values.
+9. Create the key and copy it immediately. The plaintext is never shown again.
 
 Revoke a client immediately when a system is retired or a key may be exposed. Create a replacement instead of sharing one key between unrelated systems.
 

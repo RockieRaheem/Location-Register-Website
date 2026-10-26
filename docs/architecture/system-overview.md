@@ -73,6 +73,8 @@ A service client selects exactly one boundary type:
 - one or more countries; or
 - specific location roots and every descendant beneath them.
 
+Country scopes support either multiple whole countries or specific hierarchy roots within exactly one country. The interface presents these as separate paths, and API validation rejects hierarchy roots that cross country boundaries.
+
 Permissions such as `locations:read` and `geometry:read` are separate from geography. Both checks must pass.
 
 ## Data authority
