@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowRight, Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Globe2, KeyRound, Layers3, Loader2, MapPinned, Plus, Search, ShieldX, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Globe2, KeyRound, Loader2, MapPinned, Plus, Search, ShieldX, X } from 'lucide-react';
 import type { Theme } from '../../types';
 import {
   createMachineApiClient,
@@ -348,11 +348,12 @@ const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, loc
         <div className="flex items-center gap-3"><span className="text-2xl" aria-hidden="true">{countryFlag(startingCountry.countryCode)}</span><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-yellow-500">Selected country</p><h4 className="font-semibold">{startingCountry.name} <span className={`font-normal ${muted}`}>({startingCountry.countryCode})</span></h4></div></div>
         <button type="button" onClick={onResetCountry} className={`self-start rounded-lg border px-3 py-2 text-xs font-semibold transition-colors sm:self-auto ${dark ? 'border-slate-600 hover:bg-slate-800' : 'border-slate-300 bg-white hover:bg-slate-100'}`}>Change country</button>
       </div>
-      <fieldset className="p-5 sm:p-6"><legend className="sr-only">Choose country access</legend><div><h4 className="font-semibold">How much of {startingCountry.name} should this client access?</h4><p className={`mt-1 text-sm ${muted}`}>Choose one model. The next screen will show only the controls needed for that choice.</p></div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2" role="radiogroup" aria-label="Country access model">
-          <AccessChoice icon={<Globe2 size={22} />} title="Whole country" description="Include every available location and hierarchy level. You can add more countries afterward." dark={dark} onClick={() => onCoverageChange('whole-country')} />
-          <AccessChoice icon={<Layers3 size={22} />} title="Specific hierarchies" description={`Choose precise regions, districts, or lower levels within ${startingCountry.name}. This keeps the client tied to one country.`} dark={dark} onClick={() => onCoverageChange('specific-hierarchy')} />
+      <fieldset className="p-4 sm:px-5"><legend className="text-sm font-semibold">Access coverage</legend>
+        <div className={`mt-2 grid max-w-xl grid-cols-2 gap-1 rounded-xl border p-1 ${dark ? 'border-slate-600 bg-slate-950' : 'border-slate-300 bg-slate-100'}`} role="radiogroup" aria-label="Country access coverage">
+          <button type="button" role="radio" aria-checked="false" onClick={() => onCoverageChange('whole-country')} className={`flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500/40 ${dark ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-700 hover:bg-white'}`}><Globe2 size={16} />Whole country</button>
+          <button type="button" role="radio" aria-checked="false" onClick={() => onCoverageChange('specific-hierarchy')} className={`flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-500/40 ${dark ? 'text-slate-200 hover:bg-slate-800' : 'text-slate-700 hover:bg-white'}`}><MapPinned size={16} />Specific hierarchies</button>
         </div>
+        <p className={`mt-2 text-xs ${muted}`}>Whole-country access can include additional countries; hierarchy access remains limited to {startingCountry.name}.</p>
       </fieldset>
     </section>;
   }
@@ -375,12 +376,6 @@ const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, loc
     <div className={`border-t px-5 py-5 sm:px-6 ${dark ? 'border-slate-700/80' : 'border-sky-200'}`}><HierarchyLocationPicker dark={dark} disabled={!locationCountry} loading={locationsLoading} query={locationSearch} onQueryChange={onLocationSearchChange} results={locationResults} selected={selectedLocations} onSelect={onLocationSelect} onRemove={onLocationRemove} /></div>
   </section>;
 };
-
-const AccessChoice = ({ icon, title, description, dark, onClick }: { icon: React.ReactNode; title: string; description: string; dark: boolean; onClick: () => void }) => (
-  <button type="button" role="radio" aria-checked="false" onClick={onClick} className={`group flex min-h-36 flex-col rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-yellow-500 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-500/40 ${dark ? 'border-slate-600 bg-slate-900 hover:shadow-black/20' : 'border-slate-200 bg-white hover:shadow-slate-900/10'}`}>
-    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-yellow-500/15 text-yellow-500">{icon}</span><span className="mt-4 flex w-full items-center justify-between gap-3"><span className="font-semibold">{title}</span><ArrowRight size={17} className="text-yellow-500 transition-transform group-hover:translate-x-1" /></span><span className={`mt-1.5 text-sm leading-5 ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{description}</span>
-  </button>
-);
 
 const CountryPicker = ({ countries, selected, dark, multiple, placeholder, onChange }: { countries: CountryOption[]; selected: string[]; dark: boolean; multiple: boolean; placeholder: string; onChange: (values: string[]) => void }) => {
   const [open, setOpen] = useState(false);
