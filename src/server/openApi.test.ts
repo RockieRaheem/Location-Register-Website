@@ -33,4 +33,11 @@ describe('Any-Location OpenAPI contract', () => {
       '/locations/{referenceCode}/leader/end',
     ]));
   });
+
+  it('requires a country hierarchy level when selecting service-client locations', () => {
+    const operation = locationApiOpenApi.paths['/admin/api-scope-locations'].get;
+    const level = operation.parameters.find((parameter) => parameter.name === 'level');
+
+    expect(level).toMatchObject({ in: 'query', required: true, schema: { type: 'integer', minimum: 1 } });
+  });
 });

@@ -130,8 +130,9 @@ export function getApiGeographicScopeCatalog(): Promise<ApiGeographicScopeCatalo
   return authenticatedApiRequest('/api/v1/admin/api-scope-catalog');
 }
 
-export async function searchApiScopeLocations(countryCode: string, search: string): Promise<ApiScopeLocationOption[]> {
-  const result = await authenticatedApiRequest<{ items: ApiScopeLocationOption[] }>(`/api/v1/admin/api-scope-locations?countryCode=${encodeURIComponent(countryCode)}&search=${encodeURIComponent(search)}`);
+export async function searchApiScopeLocations(countryCode: string, search: string, levelOrder: number): Promise<ApiScopeLocationOption[]> {
+  const query = new URLSearchParams({ countryCode, search, level: String(levelOrder) });
+  const result = await authenticatedApiRequest<{ items: ApiScopeLocationOption[] }>(`/api/v1/admin/api-scope-locations?${query}`);
   return result.items;
 }
 

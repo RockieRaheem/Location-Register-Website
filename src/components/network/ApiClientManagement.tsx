@@ -4,11 +4,13 @@ import { Check, ChevronDown, ChevronLeft, ChevronRight, Copy, Gauge, Globe2, Key
 import type { Theme } from '../../types';
 import {
   createMachineApiClient,
+  getApiCountryHierarchy,
   getApiGeographicScopeCatalog,
   listMachineApiClients,
   revokeMachineApiClient,
   searchApiScopeLocations,
   type ApiGeographicScopeCatalog,
+  type ApiHierarchyLevel,
   type ApiScopeLocationOption,
   type MachineApiClient,
 } from '../../services/userAdministrationService';
@@ -51,6 +53,9 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [locationSearch, setLocationSearch] = useState('');
   const [locationResults, setLocationResults] = useState<ApiScopeLocationOption[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<ApiScopeLocationOption[]>([]);
+  const [hierarchyLevels, setHierarchyLevels] = useState<ApiHierarchyLevel[]>([]);
+  const [selectedLevelOrder, setSelectedLevelOrder] = useState<number | null>(null);
+  const [levelsLoading, setLevelsLoading] = useState(false);
   const [locationsLoading, setLocationsLoading] = useState(false);
   const [clientPage, setClientPage] = useState(1);
   const [clientsPerPage, setClientsPerPage] = useState(10);
@@ -99,21 +104,41 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   }, [isCreateOpen, saving]);
 
   useEffect(() => {
-    if (scopeType !== 'country' || countryCoverage !== 'specific-hierarchy' || !locationCountry || locationSearch.trim().length === 1) {
+    if (scopeType !== 'country' || countryCoverage !== 'specific-hierarchy' || !locationCountry) {
+      setHierarchyLevels([]);
+      setSelectedLevelOrder(null);
+      return undefined;
+    }
+    let active = true;
+    setLevelsLoading(true);
+    getApiCountryHierarchy(locationCountry)
+      .then((levels) => {
+        if (!active) return;
+        const selectableLevels = levels.filter((level) => level.order > 0).sort((a, b) => a.order - b.order);
+        setHierarchyLevels(selectableLevels);
+        setSelectedLevelOrder((current) => selectableLevels.some((level) => level.order === current) ? current : selectableLevels[0]?.order ?? null);
+      })
+      .catch((caught) => { if (active) setError(caught instanceof Error ? caught.message : 'Unable to load hierarchy levels.'); })
+      .finally(() => { if (active) setLevelsLoading(false); });
+    return () => { active = false; };
+  }, [scopeType, countryCoverage, locationCountry]);
+
+  useEffect(() => {
+    if (scopeType !== 'country' || countryCoverage !== 'specific-hierarchy' || !locationCountry || selectedLevelOrder == null || locationSearch.trim().length === 1) {
       setLocationResults([]);
       return undefined;
     }
     const timer = window.setTimeout(async () => {
       setLocationsLoading(true);
       try {
-        const results = await searchApiScopeLocations(locationCountry, locationSearch.trim());
+        const results = await searchApiScopeLocations(locationCountry, locationSearch.trim(), selectedLevelOrder);
         setLocationResults(results.filter((item) => !selectedLocations.some((selected) => selected.referenceCode === item.referenceCode)));
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Unable to search locations.');
       } finally { setLocationsLoading(false); }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [scopeType, countryCoverage, locationCountry, locationSearch, selectedLocations]);
+  }, [scopeType, countryCoverage, locationCountry, selectedLevelOrder, locationSearch, selectedLocations]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -134,7 +159,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
       });
       setSecret(result.apiKey); setCopied(false);
       setForm(newClientForm());
-      setWizardStep(1); setScopeType('country'); setCountryCoverage('whole-country'); setLocationCountry(''); setSelectedLocations([]);
+      setWizardStep(1); setScopeType('country'); setCountryCoverage('whole-country'); setLocationCountry(''); setSelectedLocations([]); setHierarchyLevels([]); setSelectedLevelOrder(null);
       setIsCreateOpen(false);
       await load();
       setClientPage(1);
@@ -146,20 +171,20 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const revoke = async (uid: string) => { await revokeMachineApiClient(uid); await load(); };
   const openCreateClient = () => {
     setError(''); setWizardStep(1); setScopeType('country'); setCountryCoverage('whole-country'); setLocationCountry('');
-    setLocationSearch(''); setLocationResults([]); setSelectedLocations([]); setForm(newClientForm()); setIsCreateOpen(true);
+    setLocationSearch(''); setLocationResults([]); setSelectedLocations([]); setHierarchyLevels([]); setSelectedLevelOrder(null); setForm(newClientForm()); setIsCreateOpen(true);
   };
   const changeScopeType = (nextType: GeographicScopeType) => {
     setScopeType(nextType);
     setCountryCoverage(nextType === 'country' ? 'whole-country' : null);
     setForm((current) => ({ ...current, economicZones: [], regionalBlocks: [], countries: [] }));
-    setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
+    setSelectedLocations([]); setLocationSearch(''); setLocationResults([]); setHierarchyLevels([]); setSelectedLevelOrder(null);
   };
   const changeCountries = (values: string[]) => {
     const nextCountries = countryCoverage === 'specific-hierarchy' ? values.slice(-1) : values;
     setForm((current) => ({ ...current, countries: nextCountries }));
     if (countryCoverage === 'specific-hierarchy') {
       setLocationCountry(nextCountries[0] || '');
-      setSelectedLocations([]); setLocationSearch(''); setLocationResults([]);
+      setSelectedLocations([]); setLocationSearch(''); setLocationResults([]); setHierarchyLevels([]); setSelectedLevelOrder(null);
     }
   };
   const changeCountryCoverage = (coverage: Exclude<CountryCoverage, null>) => {
@@ -229,10 +254,14 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
                 locationSearch={locationSearch}
                 locationResults={locationResults}
                 selectedLocations={selectedLocations}
+                hierarchyLevels={hierarchyLevels}
+                selectedLevelOrder={selectedLevelOrder}
+                levelsLoading={levelsLoading}
                 locationsLoading={locationsLoading}
                 onCountriesChange={changeCountries}
                 onCoverageChange={changeCountryCoverage}
                 onLocationSearchChange={setLocationSearch}
+                onLevelChange={(levelOrder) => { setSelectedLevelOrder(levelOrder); setLocationSearch(''); setLocationResults([]); }}
                 onLocationSelect={(location) => { setSelectedLocations((items) => items.length >= 100 || items.some((item) => item.referenceCode === location.referenceCode) ? items : [...items, location]); setLocationSearch(''); }}
                 onLocationRemove={(referenceCode) => setSelectedLocations((items) => items.filter((item) => item.referenceCode !== referenceCode))}
               />}
@@ -341,7 +370,7 @@ const ReviewCard = ({ label, value, detail, dark, icon, onEdit }: { label: strin
 
 type CountryOption = ApiGeographicScopeCatalog['countries'][number];
 
-const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, locationCountry, locationSearch, locationResults, selectedLocations, locationsLoading, onCountriesChange, onCoverageChange, onLocationSearchChange, onLocationSelect, onLocationRemove }: {
+const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, locationCountry, locationSearch, locationResults, selectedLocations, hierarchyLevels, selectedLevelOrder, levelsLoading, locationsLoading, onCountriesChange, onCoverageChange, onLocationSearchChange, onLevelChange, onLocationSelect, onLocationRemove }: {
   dark: boolean;
   countries: CountryOption[];
   selectedCountryCodes: string[];
@@ -350,10 +379,14 @@ const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, loc
   locationSearch: string;
   locationResults: ApiScopeLocationOption[];
   selectedLocations: ApiScopeLocationOption[];
+  hierarchyLevels: ApiHierarchyLevel[];
+  selectedLevelOrder: number | null;
+  levelsLoading: boolean;
   locationsLoading: boolean;
   onCountriesChange: (countryCodes: string[]) => void;
   onCoverageChange: (coverage: Exclude<CountryCoverage, null>) => void;
   onLocationSearchChange: (value: string) => void;
+  onLevelChange: (levelOrder: number) => void;
   onLocationSelect: (location: ApiScopeLocationOption) => void;
   onLocationRemove: (referenceCode: string) => void;
 }) => {
@@ -364,9 +397,61 @@ const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, loc
     return <div className="space-y-4">{coverageSelector}<section className={`overflow-visible rounded-xl border p-4 ${dark ? 'border-emerald-500/30 bg-emerald-500/[0.05]' : 'border-emerald-200 bg-emerald-50/60'}`}><div className="mb-3"><h4 className="text-sm font-semibold">Countries with full access</h4><p className={`mt-1 text-xs ${muted}`}>Add every country this client needs. All configured locations and hierarchy levels are included.</p></div><CountryPicker countries={countries} selected={selectedCountryCodes} dark={dark} multiple placeholder="Add another country" onChange={onCountriesChange} /></section></div>;
   }
 
-  return <div className="space-y-4">{coverageSelector}<section className={`overflow-visible rounded-xl border p-4 ${dark ? 'border-sky-500/30 bg-sky-500/[0.05]' : 'border-sky-200 bg-sky-50/60'}`}><div className="mb-3"><h4 className="text-sm font-semibold">One country, selected locations</h4><p className={`mt-1 text-xs ${muted}`}>Choose one country, then add regions, districts, or lower-level roots. Their descendants are included automatically.</p></div><CountryPicker countries={countries} selected={selectedCountryCodes} dark={dark} multiple={false} placeholder="Choose a country" onChange={onCountriesChange} /><div className="mt-4"><HierarchyLocationPicker dark={dark} disabled={!locationCountry} loading={locationsLoading} query={locationSearch} onQueryChange={onLocationSearchChange} results={locationResults} selected={selectedLocations} onSelect={onLocationSelect} onRemove={onLocationRemove} /></div></section></div>;
+  return <SpecificHierarchyScope dark={dark} muted={muted} coverageSelector={coverageSelector} countries={countries} selectedCountryCodes={selectedCountryCodes} locationCountry={locationCountry} hierarchyLevels={hierarchyLevels} selectedLevelOrder={selectedLevelOrder} levelsLoading={levelsLoading} locationsLoading={locationsLoading} locationSearch={locationSearch} locationResults={locationResults} selectedLocations={selectedLocations} onCountriesChange={onCountriesChange} onLevelChange={onLevelChange} onLocationSearchChange={onLocationSearchChange} onLocationSelect={onLocationSelect} onLocationRemove={onLocationRemove} />;
 };
 
+const SpecificHierarchyScope = (props: SpecificHierarchyScopeProps) => {
+  const activeLevel = props.hierarchyLevels.find((level) => level.order === props.selectedLevelOrder);
+  return <div className="space-y-4">
+    {props.coverageSelector}
+    <section className={`overflow-visible rounded-xl border p-4 ${props.dark ? 'border-sky-500/30 bg-sky-500/[0.05]' : 'border-sky-200 bg-sky-50/60'}`}>
+      <div className="mb-3">
+        <h4 className="text-sm font-semibold">One country, selected locations</h4>
+        <p className={`mt-1 text-xs ${props.muted}`}>Choose a country, select an administrative level, then add locations. Every descendant below each selection is included automatically.</p>
+      </div>
+      <CountryPicker countries={props.countries} selected={props.selectedCountryCodes} dark={props.dark} multiple={false} placeholder="Choose a country" onChange={props.onCountriesChange} />
+      {props.locationCountry && <div className="mt-4 grid gap-4 md:grid-cols-[minmax(180px,0.8fr)_minmax(0,2fr)]">
+        <HierarchyLevelPicker dark={props.dark} levels={props.hierarchyLevels} selectedLevelOrder={props.selectedLevelOrder} loading={props.levelsLoading} onChange={props.onLevelChange} />
+        <HierarchyLocationPicker dark={props.dark} disabled={props.selectedLevelOrder == null || props.levelsLoading} loading={props.locationsLoading} query={props.locationSearch} onQueryChange={props.onLocationSearchChange} results={props.locationResults} selected={props.selectedLocations} activeLevelName={activeLevel?.name || ''} onSelect={props.onLocationSelect} onRemove={props.onLocationRemove} />
+      </div>}
+    </section>
+  </div>;
+};
+
+interface SpecificHierarchyScopeProps {
+  dark: boolean;
+  muted: string;
+  coverageSelector: React.ReactNode;
+  countries: CountryOption[];
+  selectedCountryCodes: string[];
+  locationCountry: string;
+  hierarchyLevels: ApiHierarchyLevel[];
+  selectedLevelOrder: number | null;
+  levelsLoading: boolean;
+  locationsLoading: boolean;
+  locationSearch: string;
+  locationResults: ApiScopeLocationOption[];
+  selectedLocations: ApiScopeLocationOption[];
+  onCountriesChange: (values: string[]) => void;
+  onLevelChange: (levelOrder: number) => void;
+  onLocationSearchChange: (value: string) => void;
+  onLocationSelect: (location: ApiScopeLocationOption) => void;
+  onLocationRemove: (referenceCode: string) => void;
+}
+
+const HierarchyLevelPicker = ({ dark, levels, selectedLevelOrder, loading, onChange }: { dark: boolean; levels: ApiHierarchyLevel[]; selectedLevelOrder: number | null; loading: boolean; onChange: (levelOrder: number) => void }) => (
+  <label className="text-sm font-medium">
+    Administrative level
+    <div className="relative mt-1.5">
+      <select aria-label="Administrative hierarchy level" disabled={loading || levels.length === 0} style={{ colorScheme: dark ? 'dark' : 'light' }} value={selectedLevelOrder ?? ''} onChange={(event) => onChange(Number(event.target.value))} className={`h-11 w-full appearance-none rounded-lg border px-3 pr-9 text-sm font-semibold outline-none transition-colors focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${dark ? 'border-slate-600 bg-slate-950 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}>
+        <option value="">{loading ? 'Loading levels…' : 'Select a level'}</option>
+        {levels.map((level) => <option key={level.order} value={level.order} className={dark ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}>{level.name}</option>)}
+      </select>
+      <ChevronDown size={16} aria-hidden="true" className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 ${dark ? 'text-slate-400' : 'text-slate-500'}`} />
+    </div>
+    <span className={`mt-1.5 block text-[11px] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Switch levels to combine different hierarchy roots.</span>
+  </label>
+);
 const CountryPicker = ({ countries, selected, dark, multiple, placeholder, onChange }: { countries: CountryOption[]; selected: string[]; dark: boolean; multiple: boolean; placeholder: string; onChange: (values: string[]) => void }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -389,7 +474,7 @@ function countryFlag(countryCode: string): string {
 
 interface ScopeOption { code: string; name: string; detail: string; }
 
-const HierarchyLocationPicker = ({ dark, disabled, loading, query, onQueryChange, results, selected, onSelect, onRemove }: {
+const HierarchyLocationPicker = ({ dark, disabled, loading, query, onQueryChange, results, selected, activeLevelName, onSelect, onRemove }: {
   dark: boolean;
   disabled: boolean;
   loading: boolean;
@@ -397,6 +482,7 @@ const HierarchyLocationPicker = ({ dark, disabled, loading, query, onQueryChange
   onQueryChange: (value: string) => void;
   results: ApiScopeLocationOption[];
   selected: ApiScopeLocationOption[];
+  activeLevelName: string;
   onSelect: (location: ApiScopeLocationOption) => void;
   onRemove: (referenceCode: string) => void;
 }) => {
@@ -409,10 +495,10 @@ const HierarchyLocationPicker = ({ dark, disabled, loading, query, onQueryChange
         : availableResults.length === 0 ? 'No matching hierarchy locations' : '';
 
   return <div className="relative text-sm font-medium" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-    <div className="flex items-center justify-between gap-2"><label htmlFor="service-client-hierarchy-picker">Hierarchy locations</label><span className={`text-[10px] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{selected.length}/100 roots</span></div>
+    <div className="flex items-center justify-between gap-2"><label htmlFor="service-client-hierarchy-picker">{activeLevelName || 'Hierarchy'} locations</label><span className={`text-[10px] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{selected.length}/100 roots</span></div>
     <div className={`mt-1.5 flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1.5 transition-colors focus-within:border-yellow-500 focus-within:ring-2 focus-within:ring-yellow-500/20 ${disabled ? 'cursor-not-allowed opacity-60' : ''} ${dark ? 'border-slate-600 bg-slate-950 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}>
       {selected.map((location) => <span key={location.referenceCode} className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-bold ${dark ? 'border-slate-600 bg-slate-800 text-slate-100' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>{location.name}<span className={`font-normal ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{location.levelName}</span><button type="button" onClick={() => onRemove(location.referenceCode)} aria-label={`Remove ${location.name}`} className="rounded p-0.5 hover:bg-red-500/15 hover:text-red-500"><X size={12} /></button></span>)}
-      <div className="flex min-w-56 flex-1 items-center gap-2"><Search size={15} className={dark ? 'text-slate-400' : 'text-slate-500'} aria-hidden="true" /><input id="service-client-hierarchy-picker" role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="service-client-hierarchy-results" disabled={disabled || atLimit} value={query} onFocus={() => setOpen(true)} onChange={(event) => { onQueryChange(event.target.value); setOpen(true); }} className={`h-7 min-w-0 flex-1 border-0 bg-transparent text-sm font-normal outline-none ${dark ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'}`} placeholder={disabled ? 'Select a country first' : atLimit ? 'Maximum hierarchy roots reached' : selected.length ? 'Search and add another location' : 'Search or select a hierarchy location'} /></div>
+      <div className="flex min-w-56 flex-1 items-center gap-2"><Search size={15} className={dark ? 'text-slate-400' : 'text-slate-500'} aria-hidden="true" /><input id="service-client-hierarchy-picker" role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="service-client-hierarchy-results" disabled={disabled || atLimit} value={query} onFocus={() => setOpen(true)} onChange={(event) => { onQueryChange(event.target.value); setOpen(true); }} className={`h-7 min-w-0 flex-1 border-0 bg-transparent text-sm font-normal outline-none ${dark ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'}`} placeholder={disabled ? 'Select an administrative level first' : atLimit ? 'Maximum hierarchy roots reached' : `Search or choose ${activeLevelName || 'locations'}`} /></div>
     </div>
     {open && !disabled && !atLimit && <div id="service-client-hierarchy-results" role="listbox" className={`absolute inset-x-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border p-1 shadow-xl ${dark ? 'border-slate-600 bg-slate-900 text-slate-100 shadow-black/40' : 'border-slate-200 bg-white text-slate-900 shadow-slate-900/15'}`}>
       {status ? <p className={`px-3 py-3 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`} role="status">{status}</p> : availableResults.map((location) => <button key={location.referenceCode} type="button" role="option" aria-selected="false" onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(location); setOpen(false); }} className={`flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2.5 text-left transition-colors ${dark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}><span className="min-w-0"><span className="block truncate text-sm font-semibold">{location.name}</span><span className={`mt-0.5 block truncate text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{location.referenceCode}</span></span><span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${dark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>{location.levelName}</span></button>)}

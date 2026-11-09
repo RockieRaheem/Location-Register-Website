@@ -182,12 +182,14 @@ async function startServer() {
   app.get('/api/v1/admin/api-scope-locations', authorizeOwner, (request, response) => {
     const countryCode = String(request.query.countryCode || '').trim().toUpperCase();
     const search = String(request.query.search || '').trim();
+    const levelOrder = integerQuery(request.query.level);
     if (!/^[A-Z]{2}$/.test(countryCode)) return response.status(400).json({ code: 'COUNTRY_REQUIRED', message: 'Select a valid country.' });
     if (!locationDatabase.getCountryByCode(countryCode)) return response.status(404).json({ code: 'COUNTRY_NOT_FOUND', message: 'The selected country is not configured.' });
+    if (levelOrder == null || levelOrder < 1) return response.status(400).json({ code: 'HIERARCHY_LEVEL_REQUIRED', message: 'Select a valid hierarchy level.' });
+    const levels = locationDatabase.getHierarchy(countryCode).levels;
+    if (!levels.some((level) => level.order === levelOrder)) return response.status(400).json({ code: 'HIERARCHY_LEVEL_INVALID', message: 'That hierarchy level is not configured for the selected country.' });
     if (search.length === 1) return response.json({ items: [] });
-    const page = locationDatabase.listLocations(countryCode, search
-      ? { search, limit: 100, offset: 0 }
-      : { levelOrder: 1, limit: 100, offset: 0 });
+    const page = locationDatabase.listLocations(countryCode, { levelOrder, search: search || undefined, limit: 100, offset: 0 });
     return response.json({ items: page.items.filter((location) => location.levelOrder > 0) });
   });
   app.post('/api/v1/admin/api-clients', authorizeOwner, (request, response) => {
