@@ -29,15 +29,14 @@ The command-line role script is an emergency recovery path, not the normal workf
 
 1. Open **System settings > API Access > Service clients**.
 2. Select **Create service client**.
-3. Give the integration a recognizable name and purpose.
-4. Select exactly one geographic boundary type.
-5. For **Country**, choose the first country and then choose one access model:
-   - **Whole country** includes every configured level and location, and permits additional countries.
-   - **Specific hierarchies** selects one or more hierarchy roots and their descendants within that one country only.
-6. For an economic zone or regional block, choose the required entries from the selector.
-7. Select only required permissions.
-8. Set conservative requests-per-minute, daily quota, and expiry values.
-9. Create the key and copy it immediately. The plaintext is never shown again.
+3. In **Client & geography**, give the integration a recognizable name and select exactly one boundary model.
+4. For **Country**, choose one coverage mode:
+   - **Whole countries** exposes a searchable multi-country picker. Add every country whose complete configured hierarchy should be available.
+   - **Specific locations** permits one country and one or more hierarchy roots; every descendant below each root is included.
+5. For an economic zone or regional block, choose the required entries from the selector.
+6. In **Permissions & limits**, select only required permissions and set conservative request, daily-quota, and expiry values.
+7. In **Review**, verify the identity, geography, permissions, and limits before creating the key.
+8. Copy the key immediately. The plaintext is never shown again.
 
 Revoke a client immediately when a system is retired or a key may be exposed. Create a replacement instead of sharing one key between unrelated systems.
 
