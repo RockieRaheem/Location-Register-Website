@@ -52,6 +52,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   const [locationCountry, setLocationCountry] = useState('');
   const [locationSearch, setLocationSearch] = useState('');
   const [locationResults, setLocationResults] = useState<ApiScopeLocationOption[]>([]);
+  const [locationResultTotal, setLocationResultTotal] = useState(0);
   const [selectedLocations, setSelectedLocations] = useState<ApiScopeLocationOption[]>([]);
   const [hierarchyLevels, setHierarchyLevels] = useState<ApiHierarchyLevel[]>([]);
   const [selectedLevelOrder, setSelectedLevelOrder] = useState<number | null>(null);
@@ -126,19 +127,21 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
   useEffect(() => {
     if (scopeType !== 'country' || countryCoverage !== 'specific-hierarchy' || !locationCountry || selectedLevelOrder == null || locationSearch.trim().length === 1) {
       setLocationResults([]);
+      setLocationResultTotal(0);
       return undefined;
     }
     const timer = window.setTimeout(async () => {
       setLocationsLoading(true);
       try {
-        const results = await searchApiScopeLocations(locationCountry, locationSearch.trim(), selectedLevelOrder);
-        setLocationResults(results.filter((item) => !selectedLocations.some((selected) => selected.referenceCode === item.referenceCode)));
+        const result = await searchApiScopeLocations(locationCountry, locationSearch.trim(), selectedLevelOrder);
+        setLocationResults(result.items);
+        setLocationResultTotal(result.total);
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : 'Unable to search locations.');
       } finally { setLocationsLoading(false); }
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [scopeType, countryCoverage, locationCountry, selectedLevelOrder, locationSearch, selectedLocations]);
+  }, [scopeType, countryCoverage, locationCountry, selectedLevelOrder, locationSearch]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -253,6 +256,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
                 locationCountry={locationCountry}
                 locationSearch={locationSearch}
                 locationResults={locationResults}
+                locationResultTotal={locationResultTotal}
                 selectedLocations={selectedLocations}
                 hierarchyLevels={hierarchyLevels}
                 selectedLevelOrder={selectedLevelOrder}
@@ -261,7 +265,7 @@ const ApiClientManagement = ({ theme }: { theme: Theme }) => {
                 onCountriesChange={changeCountries}
                 onCoverageChange={changeCountryCoverage}
                 onLocationSearchChange={setLocationSearch}
-                onLevelChange={(levelOrder) => { setSelectedLevelOrder(levelOrder); setLocationSearch(''); setLocationResults([]); }}
+                onLevelChange={(levelOrder) => { setSelectedLevelOrder(levelOrder); setLocationSearch(''); setLocationResults([]); setLocationResultTotal(0); }}
                 onLocationSelect={(location) => { setSelectedLocations((items) => items.length >= 100 || items.some((item) => item.referenceCode === location.referenceCode) ? items : [...items, location]); setLocationSearch(''); }}
                 onLocationRemove={(referenceCode) => setSelectedLocations((items) => items.filter((item) => item.referenceCode !== referenceCode))}
               />}
@@ -370,7 +374,7 @@ const ReviewCard = ({ label, value, detail, dark, icon, onEdit }: { label: strin
 
 type CountryOption = ApiGeographicScopeCatalog['countries'][number];
 
-const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, locationCountry, locationSearch, locationResults, selectedLocations, hierarchyLevels, selectedLevelOrder, levelsLoading, locationsLoading, onCountriesChange, onCoverageChange, onLocationSearchChange, onLevelChange, onLocationSelect, onLocationRemove }: {
+const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, locationCountry, locationSearch, locationResults, locationResultTotal, selectedLocations, hierarchyLevels, selectedLevelOrder, levelsLoading, locationsLoading, onCountriesChange, onCoverageChange, onLocationSearchChange, onLevelChange, onLocationSelect, onLocationRemove }: {
   dark: boolean;
   countries: CountryOption[];
   selectedCountryCodes: string[];
@@ -378,6 +382,7 @@ const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, loc
   locationCountry: string;
   locationSearch: string;
   locationResults: ApiScopeLocationOption[];
+  locationResultTotal: number;
   selectedLocations: ApiScopeLocationOption[];
   hierarchyLevels: ApiHierarchyLevel[];
   selectedLevelOrder: number | null;
@@ -397,7 +402,7 @@ const CountryScopeFlow = ({ dark, countries, selectedCountryCodes, coverage, loc
     return <div className="space-y-4">{coverageSelector}<section className={`overflow-visible rounded-xl border p-4 ${dark ? 'border-emerald-500/30 bg-emerald-500/[0.05]' : 'border-emerald-200 bg-emerald-50/60'}`}><div className="mb-3"><h4 className="text-sm font-semibold">Countries with full access</h4><p className={`mt-1 text-xs ${muted}`}>Add every country this client needs. All configured locations and hierarchy levels are included.</p></div><CountryPicker countries={countries} selected={selectedCountryCodes} dark={dark} multiple placeholder="Add another country" onChange={onCountriesChange} /></section></div>;
   }
 
-  return <SpecificHierarchyScope dark={dark} muted={muted} coverageSelector={coverageSelector} countries={countries} selectedCountryCodes={selectedCountryCodes} locationCountry={locationCountry} hierarchyLevels={hierarchyLevels} selectedLevelOrder={selectedLevelOrder} levelsLoading={levelsLoading} locationsLoading={locationsLoading} locationSearch={locationSearch} locationResults={locationResults} selectedLocations={selectedLocations} onCountriesChange={onCountriesChange} onLevelChange={onLevelChange} onLocationSearchChange={onLocationSearchChange} onLocationSelect={onLocationSelect} onLocationRemove={onLocationRemove} />;
+  return <SpecificHierarchyScope dark={dark} muted={muted} coverageSelector={coverageSelector} countries={countries} selectedCountryCodes={selectedCountryCodes} locationCountry={locationCountry} hierarchyLevels={hierarchyLevels} selectedLevelOrder={selectedLevelOrder} levelsLoading={levelsLoading} locationsLoading={locationsLoading} locationSearch={locationSearch} locationResults={locationResults} locationResultTotal={locationResultTotal} selectedLocations={selectedLocations} onCountriesChange={onCountriesChange} onLevelChange={onLevelChange} onLocationSearchChange={onLocationSearchChange} onLocationSelect={onLocationSelect} onLocationRemove={onLocationRemove} />;
 };
 
 const SpecificHierarchyScope = (props: SpecificHierarchyScopeProps) => {
@@ -412,7 +417,7 @@ const SpecificHierarchyScope = (props: SpecificHierarchyScopeProps) => {
       <CountryPicker countries={props.countries} selected={props.selectedCountryCodes} dark={props.dark} multiple={false} placeholder="Choose a country" onChange={props.onCountriesChange} />
       {props.locationCountry && <div className="mt-4 grid gap-4 md:grid-cols-[minmax(180px,0.8fr)_minmax(0,2fr)]">
         <HierarchyLevelPicker dark={props.dark} levels={props.hierarchyLevels} selectedLevelOrder={props.selectedLevelOrder} loading={props.levelsLoading} onChange={props.onLevelChange} />
-        <HierarchyLocationPicker dark={props.dark} disabled={props.selectedLevelOrder == null || props.levelsLoading} loading={props.locationsLoading} query={props.locationSearch} onQueryChange={props.onLocationSearchChange} results={props.locationResults} selected={props.selectedLocations} activeLevelName={activeLevel?.name || ''} onSelect={props.onLocationSelect} onRemove={props.onLocationRemove} />
+        <HierarchyLocationPicker dark={props.dark} disabled={props.selectedLevelOrder == null || props.levelsLoading} loading={props.locationsLoading} query={props.locationSearch} onQueryChange={props.onLocationSearchChange} results={props.locationResults} resultTotal={props.locationResultTotal} selected={props.selectedLocations} activeLevelName={activeLevel?.name || ''} onSelect={props.onLocationSelect} onRemove={props.onLocationRemove} />
       </div>}
     </section>
   </div>;
@@ -431,6 +436,7 @@ interface SpecificHierarchyScopeProps {
   locationsLoading: boolean;
   locationSearch: string;
   locationResults: ApiScopeLocationOption[];
+  locationResultTotal: number;
   selectedLocations: ApiScopeLocationOption[];
   onCountriesChange: (values: string[]) => void;
   onLevelChange: (levelOrder: number) => void;
@@ -474,13 +480,14 @@ function countryFlag(countryCode: string): string {
 
 interface ScopeOption { code: string; name: string; detail: string; }
 
-const HierarchyLocationPicker = ({ dark, disabled, loading, query, onQueryChange, results, selected, activeLevelName, onSelect, onRemove }: {
+const HierarchyLocationPicker = ({ dark, disabled, loading, query, onQueryChange, results, resultTotal, selected, activeLevelName, onSelect, onRemove }: {
   dark: boolean;
   disabled: boolean;
   loading: boolean;
   query: string;
   onQueryChange: (value: string) => void;
   results: ApiScopeLocationOption[];
+  resultTotal: number;
   selected: ApiScopeLocationOption[];
   activeLevelName: string;
   onSelect: (location: ApiScopeLocationOption) => void;
@@ -488,24 +495,55 @@ const HierarchyLocationPicker = ({ dark, disabled, loading, query, onQueryChange
 }) => {
   const [open, setOpen] = useState(false);
   const atLimit = selected.length >= 100;
-  const availableResults = results.filter((result) => !selected.some((item) => item.referenceCode === result.referenceCode));
-  const status = atLimit ? 'Maximum of 100 hierarchy roots reached'
-    : loading ? 'Loading hierarchy locations…'
-      : query.trim().length === 1 ? 'Type one more character to search'
-        : availableResults.length === 0 ? 'No matching hierarchy locations' : '';
+  const selectedCodes = new Set(selected.map((item) => item.referenceCode));
+  const selectedAtLevel = selected.filter((item) => item.levelName === activeLevelName);
+  const visibleSelected = results.filter((item) => selectedCodes.has(item.referenceCode));
+  const allVisibleSelected = results.length > 0 && visibleSelected.length === results.length;
+  const status = loading ? `Loading ${activeLevelName || 'hierarchy'} locations…`
+    : query.trim().length === 1 ? 'Type one more character to search'
+      : results.length === 0 ? `No ${activeLevelName || 'hierarchy'} locations found` : '';
+  const toggleLocation = (location: ApiScopeLocationOption) => {
+    if (selectedCodes.has(location.referenceCode)) onRemove(location.referenceCode);
+    else if (!atLimit) onSelect(location);
+  };
+  const selectVisible = () => {
+    const capacity = Math.max(0, 100 - selected.length);
+    results.filter((item) => !selectedCodes.has(item.referenceCode)).slice(0, capacity).forEach(onSelect);
+  };
 
-  return <div className="relative text-sm font-medium" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
-    <div className="flex items-center justify-between gap-2"><label htmlFor="service-client-hierarchy-picker">{activeLevelName || 'Hierarchy'} locations</label><span className={`text-[10px] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{selected.length}/100 roots</span></div>
-    <div className={`mt-1.5 flex min-h-11 w-full flex-wrap items-center gap-1.5 rounded-lg border px-2 py-1.5 transition-colors focus-within:border-yellow-500 focus-within:ring-2 focus-within:ring-yellow-500/20 ${disabled ? 'cursor-not-allowed opacity-60' : ''} ${dark ? 'border-slate-600 bg-slate-950 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}>
-      {selected.map((location) => <span key={location.referenceCode} className={`inline-flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-bold ${dark ? 'border-slate-600 bg-slate-800 text-slate-100' : 'border-slate-300 bg-slate-100 text-slate-900'}`}>{location.name}<span className={`font-normal ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{location.levelName}</span><button type="button" onClick={() => onRemove(location.referenceCode)} aria-label={`Remove ${location.name}`} className="rounded p-0.5 hover:bg-red-500/15 hover:text-red-500"><X size={12} /></button></span>)}
-      <div className="flex min-w-56 flex-1 items-center gap-2"><Search size={15} className={dark ? 'text-slate-400' : 'text-slate-500'} aria-hidden="true" /><input id="service-client-hierarchy-picker" role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="service-client-hierarchy-results" disabled={disabled || atLimit} value={query} onFocus={() => setOpen(true)} onChange={(event) => { onQueryChange(event.target.value); setOpen(true); }} className={`h-7 min-w-0 flex-1 border-0 bg-transparent text-sm font-normal outline-none ${dark ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'}`} placeholder={disabled ? 'Select an administrative level first' : atLimit ? 'Maximum hierarchy roots reached' : `Search or choose ${activeLevelName || 'locations'}`} /></div>
+  return <div className="relative min-w-0 text-sm font-medium" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false); }}>
+    <div className="flex items-center justify-between gap-2">
+      <label htmlFor="service-client-hierarchy-picker">{activeLevelName || 'Hierarchy'} locations</label>
+      <span className={`text-[10px] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{selected.length}/100 roots</span>
     </div>
-    {open && !disabled && !atLimit && <div id="service-client-hierarchy-results" role="listbox" className={`absolute inset-x-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-xl border p-1 shadow-xl ${dark ? 'border-slate-600 bg-slate-900 text-slate-100 shadow-black/40' : 'border-slate-200 bg-white text-slate-900 shadow-slate-900/15'}`}>
-      {status ? <p className={`px-3 py-3 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`} role="status">{status}</p> : availableResults.map((location) => <button key={location.referenceCode} type="button" role="option" aria-selected="false" onMouseDown={(event) => event.preventDefault()} onClick={() => { onSelect(location); setOpen(false); }} className={`flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2.5 text-left transition-colors ${dark ? 'hover:bg-slate-800' : 'hover:bg-slate-100'}`}><span className="min-w-0"><span className="block truncate text-sm font-semibold">{location.name}</span><span className={`mt-0.5 block truncate text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{location.referenceCode}</span></span><span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${dark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>{location.levelName}</span></button>)}
+    <div className={`mt-1.5 flex h-11 items-center gap-2 rounded-lg border px-3 transition-colors focus-within:border-yellow-500 focus-within:ring-2 focus-within:ring-yellow-500/20 ${disabled ? 'cursor-not-allowed opacity-60' : ''} ${dark ? 'border-slate-600 bg-slate-950 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}>
+      <Search size={16} className={dark ? 'text-slate-400' : 'text-slate-500'} aria-hidden="true" />
+      <input id="service-client-hierarchy-picker" role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls="service-client-hierarchy-results" disabled={disabled} value={query} onFocus={() => setOpen(true)} onChange={(event) => { onQueryChange(event.target.value); setOpen(true); }} className={`min-w-0 flex-1 border-0 bg-transparent font-normal outline-none ${dark ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400'}`} placeholder={disabled ? 'Select an administrative level first' : `Search or browse ${activeLevelName || 'locations'}`} />
+      {loading ? <Loader2 size={16} className="animate-spin text-yellow-500" /> : <ChevronDown size={16} className={`transition-transform ${open ? 'rotate-180' : ''} ${dark ? 'text-slate-400' : 'text-slate-500'}`} />}
+    </div>
+    {selected.length > 0 && <div className={`mt-2 max-h-20 overflow-y-auto rounded-lg border p-2 ${dark ? 'border-slate-700 bg-slate-950/50' : 'border-slate-200 bg-slate-50'}`}>
+      <div className="flex flex-wrap gap-1.5">{selected.map((location) => <span key={location.referenceCode} title={location.parentPath} className={`inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold ${dark ? 'border-slate-600 bg-slate-800 text-slate-100' : 'border-slate-300 bg-white text-slate-900'}`}><span className="truncate">{location.name}</span><span className={dark ? 'text-slate-400' : 'text-slate-500'}>{location.levelName}</span><button type="button" onClick={() => onRemove(location.referenceCode)} aria-label={`Remove ${location.name}`} className="shrink-0 rounded p-0.5 hover:bg-red-500/15 hover:text-red-500"><X size={12} /></button></span>)}</div>
+    </div>}
+    {open && !disabled && <div id="service-client-hierarchy-results" role="listbox" aria-multiselectable="true" className={`absolute inset-x-0 top-[calc(100%+0.25rem)] z-50 overflow-hidden rounded-xl border shadow-2xl ${dark ? 'border-slate-600 bg-slate-900 text-slate-100 shadow-black/50' : 'border-slate-200 bg-white text-slate-900 shadow-slate-900/20'}`}>
+      <div className={`flex items-center justify-between gap-3 border-b px-3 py-2 ${dark ? 'border-slate-700 bg-slate-950/70' : 'border-slate-200 bg-slate-50'}`}>
+        <div><p className="text-xs font-semibold">{results.length}{resultTotal > results.length ? ` of ${resultTotal}` : ''} {activeLevelName || 'location'}{resultTotal === 1 ? '' : 's'} shown</p><p className={`text-[10px] font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{resultTotal > results.length ? 'Search to narrow the list · ' : ''}{selectedAtLevel.length} selected at this level · descendants included</p></div>
+        <div className="flex items-center gap-2">{visibleSelected.length > 0 && <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => visibleSelected.forEach((item) => onRemove(item.referenceCode))} className={`text-[11px] font-semibold ${dark ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-950'}`}>Clear shown</button>}<button type="button" disabled={allVisibleSelected || atLimit || results.length === 0} onMouseDown={(event) => event.preventDefault()} onClick={selectVisible} className="rounded-md bg-yellow-500 px-2.5 py-1.5 text-[11px] font-bold text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">Select shown</button></div>
+      </div>
+      <div className="max-h-80 overflow-y-auto p-1.5">
+        {status ? <p className={`px-3 py-5 text-center text-xs font-normal ${dark ? 'text-slate-400' : 'text-slate-500'}`} role="status">{status}</p> : results.map((location) => {
+          const checked = selectedCodes.has(location.referenceCode);
+          const unavailable = atLimit && !checked;
+          return <button key={location.referenceCode} type="button" role="option" aria-selected={checked} disabled={unavailable} onMouseDown={(event) => event.preventDefault()} onClick={() => toggleLocation(location)} className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${checked ? dark ? 'bg-yellow-500/10' : 'bg-amber-50' : dark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}>
+            <span aria-hidden="true" className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${checked ? 'border-yellow-500 bg-yellow-500 text-slate-950' : dark ? 'border-slate-500 bg-slate-950' : 'border-slate-300 bg-white'}`}>{checked && <Check size={12} strokeWidth={3} />}</span>
+            <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{location.name}</span>{location.parentPath && <span className={`mt-0.5 block break-words text-[11px] font-normal leading-4 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Found in {location.parentPath}</span>}<span className={`mt-1 block font-mono text-[10px] font-normal ${dark ? 'text-slate-500' : 'text-slate-400'}`}>{location.referenceCode}</span></span>
+            <span className={`shrink-0 rounded-md px-2 py-1 text-[10px] font-semibold ${dark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>{location.levelName}</span>
+          </button>;
+        })}
+      </div>
+      {atLimit && <p className="border-t border-amber-500/20 bg-amber-500/10 px-3 py-2 text-[11px] font-medium text-amber-600 dark:text-amber-300">The 100-root limit is reached. Untick a selected location to choose another.</p>}
     </div>}
   </div>;
 };
-
 const ScopeMultiSelect = ({ label, placeholder, selected, options, dark, onChange }: {
   label: string; placeholder: string; selected: string[]; options: ScopeOption[]; dark: boolean; onChange: (values: string[]) => void;
 }) => (

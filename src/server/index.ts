@@ -188,9 +188,17 @@ async function startServer() {
     if (levelOrder == null || levelOrder < 1) return response.status(400).json({ code: 'HIERARCHY_LEVEL_REQUIRED', message: 'Select a valid hierarchy level.' });
     const levels = locationDatabase.getHierarchy(countryCode).levels;
     if (!levels.some((level) => level.order === levelOrder)) return response.status(400).json({ code: 'HIERARCHY_LEVEL_INVALID', message: 'That hierarchy level is not configured for the selected country.' });
-    if (search.length === 1) return response.json({ items: [] });
-    const page = locationDatabase.listLocations(countryCode, { levelOrder, search: search || undefined, limit: 100, offset: 0 });
-    return response.json({ items: page.items.filter((location) => location.levelOrder > 0) });
+    if (search.length === 1) return response.json({ items: [], total: 0, truncated: false });
+    const page = locationDatabase.listLocations(countryCode, { levelOrder, search: search || undefined, limit: 1000, offset: 0 });
+    const ancestorPaths = locationDatabase.getAncestorPaths(page.items.map((location) => location.uid));
+    const items = page.items.filter((location) => location.levelOrder > 0).map((location) => ({
+      ...location,
+      parentPath: (ancestorPaths.get(location.uid) || [])
+        .filter((ancestor) => ancestor.uid !== location.uid)
+        .map((ancestor) => `${ancestor.name} (${ancestor.levelName})`)
+        .join(' / '),
+    }));
+    return response.json({ items, total: page.total, truncated: page.total > items.length });
   });
   app.post('/api/v1/admin/api-clients', authorizeOwner, (request, response) => {
     try { return response.status(201).json(apiPlatform.createClient(request.body, actorFromRequest(request))); }

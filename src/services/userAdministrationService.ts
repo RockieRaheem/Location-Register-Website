@@ -123,17 +123,16 @@ export interface ApiGeographicScopeCatalog {
 }
 
 export interface ApiScopeLocationOption {
-  referenceCode: string; name: string; levelName: string; levelOrder: number; countryCode: string;
+  referenceCode: string; name: string; levelName: string; levelOrder: number; countryCode: string; parentPath: string;
 }
 
 export function getApiGeographicScopeCatalog(): Promise<ApiGeographicScopeCatalog> {
   return authenticatedApiRequest('/api/v1/admin/api-scope-catalog');
 }
 
-export async function searchApiScopeLocations(countryCode: string, search: string, levelOrder: number): Promise<ApiScopeLocationOption[]> {
+export async function searchApiScopeLocations(countryCode: string, search: string, levelOrder: number): Promise<{ items: ApiScopeLocationOption[]; total: number; truncated: boolean }> {
   const query = new URLSearchParams({ countryCode, search, level: String(levelOrder) });
-  const result = await authenticatedApiRequest<{ items: ApiScopeLocationOption[] }>(`/api/v1/admin/api-scope-locations?${query}`);
-  return result.items;
+  return authenticatedApiRequest(`/api/v1/admin/api-scope-locations?${query}`);
 }
 
 export function createMachineApiClient(input: { name: string; description?: string; scopes: string[]; assignedEconomicZones: string[]; assignedRegionalBlocks: string[]; assignedCountryCodes: string[]; assignedLocationReferenceCodes: string[]; requestsPerMinute: number; dailyQuota: number; expiresAt?: string }): Promise<{ clientUid: string; apiKey: string; scopes: string[]; warning: string }> {

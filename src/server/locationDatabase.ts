@@ -695,15 +695,29 @@ export class LocationDatabase {
   }
 
   getAncestors(uid: string): LocationRecord[] {
-    return (this.db.prepare(`
-      SELECT location.*, country.iso2, level.level_order, level.level_key, level.name AS level_name
+    return this.getAncestorPaths([uid]).get(uid) || [];
+  }
+
+  getAncestorPaths(uids: string[]): Map<string, LocationRecord[]> {
+    const paths = new Map<string, LocationRecord[]>();
+    if (uids.length === 0) return paths;
+    const placeholders = uids.map(() => '?').join(', ');
+    const rows = this.db.prepare(`
+      SELECT path.descendant_uid, location.*, country.iso2, level.level_order, level.level_key, level.name AS level_name
       FROM location_paths path
       JOIN locations location ON location.uid = path.ancestor_uid
       JOIN countries country ON country.uid = location.country_uid
       LEFT JOIN hierarchy_levels level ON level.uid = location.level_uid
-      WHERE path.descendant_uid = ?
-      ORDER BY path.depth DESC
-    `).all(uid) as SqlRow[]).map((row) => this.rowToLocation(row));
+      WHERE path.descendant_uid IN (${placeholders})
+      ORDER BY path.descendant_uid, path.depth DESC
+    `).all(...uids) as SqlRow[];
+    for (const row of rows) {
+      const descendantUid = String(row.descendant_uid);
+      const ancestors = paths.get(descendantUid) || [];
+      ancestors.push(this.rowToLocation(row));
+      paths.set(descendantUid, ancestors);
+    }
+    return paths;
   }
 
   isWithinAnyScope(locationUid: string, scopeReferenceCodes: string[]): boolean {
